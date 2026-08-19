@@ -1,13 +1,15 @@
 # pi-agent-bridge
 
-Pi extension that connects the `agy` (Google Antigravity) CLI as a model provider.
+Pi extension that routes prompts to external coding agents:
 
-하드코딩된 모델 목록을 노출하고, 프롬프트를 `agy` CLI로 라우팅한다.
+- `agy` — Google Antigravity CLI
+- `codex` — Codex via Agent Client Protocol (`@agentclientprotocol/codex-acp`)
 
 ## Prerequisites
 
 - Pi (`@earendil-works/pi-coding-agent`)
-- `agy` CLI installed and authenticated (`agy` 한 번 실행해서 로그인)
+- For agy: `agy` CLI installed and authenticated
+- For codex: network for `npx @agentclientprotocol/codex-acp@1.6.0`, plus Codex auth (`codex` login / API key)
 
 ## Install
 
@@ -19,9 +21,13 @@ pi install /absolute/path/to/pi-agent-bridge
 pi -e /absolute/path/to/pi-agent-bridge
 ```
 
-Install 후 Pi 재시작 → `/model` 에서 `agy/...` 선택.
+Install 후 Pi 재시작 → `/model` 에서 `agy/...` 또는 `codex/...` 선택.
 
-## Config (env)
+---
+
+## agy
+
+### Config (env)
 
 | Env | Default | Meaning |
 |---|---|---|
@@ -30,32 +36,57 @@ Install 후 Pi 재시작 → `/model` 에서 `agy/...` 선택.
 | `AGY_EXTRA_ARGS` | _(empty)_ | extra args, space-separated |
 | `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation bind discovery |
 
-State:
+State: `~/.pi/agent/agy/sessions.json`
 
-- sessions: `~/.pi/agent/agy/sessions.json`
+### Models / thinking
 
-## Models / thinking
-
-`src/agy/agy-models.ts`의 `HARDCODED_AGY_MODELS` 사용.
+`src/agy/agy-models.ts` → `HARDCODED_AGY_MODELS`
 
 - `agy/gemini-3.7-flash`
-- thinking / effort: `high` | `medium` | `low` (기본 `high`)
-- agy 호출 시 모델 id: `gemini-3.7-flash-{high|medium|low}`
+- thinking: `high` | `medium` | `low` (기본 `high`)
+- agy `--model`: `gemini-3.7-flash-{high|medium|low}`
 
-## Behavior
+### Behavior / security
 
-- agy에 넘기는 텍스트 = 최신 user 입력만 (history/tool/system harness 제외)
-- 멀티턴 문맥은 agy conversation 바인딩으로 유지
-- Pi system prompt / tools는 agy로 전달하지 않음
-- agy가 자체 에이전트로 도구를 실행하고 최종 텍스트만 Pi에 반환
-- Pi session id ↔ agy conversation id 바인딩
-- 첫 바인딩 시 conversation 디렉터리 snapshot으로 conversation id 추론
+- 최신 user 입력만 전달 (history/tool/system harness 제외)
+- 멀티턴은 agy conversation 바인딩
+- 모든 호출에 `--dangerously-skip-permissions`
 
-## Permissions / Security
+---
 
-모든 `agy` 호출에 `--dangerously-skip-permissions`를 붙인다.  
-agy가 수행하는 파일/명령 변경은 Pi permission UI를 거치지 않는다.  
-신뢰하는 워크스페이스에서만 사용할 것.
+## codex (ACP)
+
+### Config (env)
+
+| Env | Default | Meaning |
+|---|---|---|
+| `CODEX_ACP_COMMAND` | `npx` | launcher |
+| `CODEX_ACP_ARGS` | `-y @agentclientprotocol/codex-acp@1.6.0` | agent args |
+| `CODEX_ACP_TIMEOUT_MS` | `300000` | per-turn timeout |
+| `CODEX_ACP_MODE` | `agent-full-access` | ACP session mode |
+
+State: `~/.pi/agent/codex/sessions.json`
+
+> npm 최신 태그는 `1.6.0` (요청한 `1.6.1`은 registry에 없음). 다른 버전은 `CODEX_ACP_ARGS`로 지정.
+
+### Models / thinking
+
+`src/codex/models.ts` → `HARDCODED_CODEX_MODELS`
+
+- `codex/gpt-5.6-sol`
+- `codex/gpt-5.6-terra`
+- `codex/gpt-5.6-luna`
+- thinking / `reasoning_effort`: `low` | `medium` | `high` | `xhigh` | `max` (기본 `high`)
+
+### Behavior / security
+
+- 최신 user 입력만 `session/prompt`로 전달
+- 멀티턴은 ACP session id 바인딩 (프로세스 생존 시 resume)
+- permission 요청은 `allow_always` / `allow_once` 자동 승인
+- 기본 mode: `agent-full-access`
+- Pi system prompt / tools 미전달
+
+---
 
 ## Develop
 
@@ -64,6 +95,12 @@ npm install
 npm test
 ```
 
-## Based on
+## Layout
 
-[opencode-agy-plugin](https://github.com/river-gold/opencode-agy-plugin) 로직을 Pi custom provider extension으로 이식.
+```
+extensions/agy.ts
+extensions/codex.ts
+src/agy/
+src/codex/
+src/shared/
+```
