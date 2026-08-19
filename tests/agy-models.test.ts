@@ -5,7 +5,7 @@ import {
   parseAgyModels,
   resolveAgyModelId,
   toPiModels,
-} from "../src/agy-models.ts";
+} from "../src/agy/agy-models.ts";
 
 const sample = `Fetching available models...
 gemini-3.7-flash-high	Gemini 3.7 Flash (High)

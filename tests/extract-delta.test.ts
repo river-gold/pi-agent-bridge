@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { extractDelta } from "../src/extract-delta.ts";
+import { extractDelta } from "../src/agy/extract-delta.ts";
 
 describe("extractDelta", () => {
   it("returns full text when not conversation bound", () => {

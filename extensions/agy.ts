@@ -26,10 +26,10 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverModels, type AgyModelMeta } from "../src/agy-models.ts";
-import { loadConfig } from "../src/config.ts";
-import { SessionStore } from "../src/session-store.ts";
-import { streamAgy, type StreamRuntime } from "../src/stream.ts";
+import { discoverModels, type AgyModelMeta } from "../src/agy/agy-models.ts";
+import { loadConfig } from "../src/agy/config.ts";
+import { SessionStore } from "../src/agy/session-store.ts";
+import { streamAgy, type StreamRuntime } from "../src/agy/stream.ts";
 
 export default async function (pi: ExtensionAPI) {
   const config = loadConfig();

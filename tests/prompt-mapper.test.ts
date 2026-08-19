@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mapPrompt } from "../src/prompt-mapper.ts";
+import { mapPrompt } from "../src/agy/prompt-mapper.ts";
 import type { Message } from "@earendil-works/pi-ai";
 
 const assistant = (text: string): Message => ({

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
-import { discoverModels, parseAgyModels } from "../../src/agy-models.ts";
+import { discoverModels, parseAgyModels } from "../../src/agy/agy-models.ts";
 import {
   createE2EEnv,
   destroyE2EEnv,

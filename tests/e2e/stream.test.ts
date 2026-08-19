@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { streamAgy } from "../../src/stream.ts";
+import { streamAgy } from "../../src/agy/stream.ts";
 import {
   collectStream,
   createE2EEnv,
@@ -16,7 +16,7 @@ import {
   userContext,
   writeMockAgy,
 } from "./helpers.ts";
-import type { AgyModelMeta } from "../../src/agy-models.ts";
+import type { AgyModelMeta } from "../../src/agy/agy-models.ts";
 
 describe("e2e/stream", () => {
   it("first turn: streams text, binds conversation, records usage", async () => {

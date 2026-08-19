@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { SessionStore } from "../../src/session-store.ts";
+import { SessionStore } from "../../src/agy/session-store.ts";
 import { createE2EEnv, destroyE2EEnv } from "./helpers.ts";
 
 describe("e2e/session-store", () => {

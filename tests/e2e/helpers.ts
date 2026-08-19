@@ -7,10 +7,10 @@ import type {
   Context,
   Model,
 } from "@earendil-works/pi-ai";
-import { loadConfig, type AgyConfig } from "../../src/config.ts";
-import { SessionStore } from "../../src/session-store.ts";
-import { streamAgy, type StreamRuntime } from "../../src/stream.ts";
-import type { AgyModelMeta } from "../../src/agy-models.ts";
+import { loadConfig, type AgyConfig } from "../../src/agy/config.ts";
+import { SessionStore } from "../../src/agy/session-store.ts";
+import { streamAgy, type StreamRuntime } from "../../src/agy/stream.ts";
+import type { AgyModelMeta } from "../../src/agy/agy-models.ts";
 
 export interface E2EEnv {
   root: string;

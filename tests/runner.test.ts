@@ -3,7 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { runAgy } from "../src/agy-runner.ts";
+import { runAgy } from "../src/agy/agy-runner.ts";
 
 describe("runAgy", () => {
   it("spawns mock binary with expected flags", async () => {
