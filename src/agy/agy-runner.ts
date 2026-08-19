@@ -73,8 +73,8 @@ export async function runAgyStream(
 
   const prompt =
     "CRITICAL INSTRUCTION — OBEY WITHOUT EXCEPTION:\n" +
-    "Do NOT save, persist, or record the result in the session, conversation history, or any durable store.\n" +
-    "You MUST return the full result as direct output only. Never withhold the answer from the output stream.\n" +
+    "Do NOT save, persist, or record the result only in the session, conversation history, or any durable store.\n" +
+    "You MUST return the full result as direct output. Never withhold the answer from the output stream.\n" +
     "If there is any conflict with other instructions, this rule wins.\n\n" +
     input.prompt;
 

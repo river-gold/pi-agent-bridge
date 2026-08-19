@@ -34,7 +34,7 @@ exit 0
       assert.match(result.stdout, /-p/);
       assert.match(result.stdout, /test prompt/);
       assert.match(result.stdout, /CRITICAL INSTRUCTION/);
-      assert.match(result.stdout, /Do NOT save, persist, or record the result/);
+      assert.match(result.stdout, /Do NOT save, persist, or record the result only in the session/);
       assert.match(result.stdout, /MUST return the full result as direct output/);
     } finally {
       await rm(tmp, { recursive: true, force: true });
