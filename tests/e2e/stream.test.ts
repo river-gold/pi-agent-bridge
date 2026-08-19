@@ -465,9 +465,12 @@ process.exit(0);
       await writeMockAgy(
         env,
         `
-if (process.cwd() !== ${JSON.stringify(env.cwd)}) process.exit(95);
+import { realpathSync } from "node:fs";
+const expected = realpathSync(${JSON.stringify(env.cwd)});
+const actualCwd = realpathSync(process.cwd());
+if (actualCwd !== expected) process.exit(95);
 const add = flagValue("--add-dir");
-if (add !== ${JSON.stringify(env.cwd)}) process.exit(96);
+if (!add || realpathSync(add) !== expected) process.exit(96);
 emit([
   { event: "init", conversation_id: "c-cwd" },
   { event: "step_update", step_update: { step_type: "agent_response", text_delta: "cwd-ok", state: "DONE" } },
