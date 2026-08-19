@@ -52,9 +52,11 @@ State:
 
 ## Behavior
 
+- agy에 넘기는 텍스트 = 최신 user 입력만 (history/tool/system harness 제외)
+- 멀티턴 문맥은 agy conversation 바인딩으로 유지
 - Pi system prompt / tools는 agy로 전달하지 않음
 - agy가 자체 에이전트로 도구를 실행하고 최종 텍스트만 Pi에 반환
-- Pi session id ↔ agy conversation id 바인딩으로 멀티턴 유지
+- Pi session id ↔ agy conversation id 바인딩
 - 첫 바인딩 시 conversation 디렉터리 snapshot으로 conversation id 추론
 
 ## Permissions / Security

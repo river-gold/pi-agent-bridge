@@ -12,7 +12,7 @@ import type { AgyConfig } from "./config.ts";
 import { findNewConversation, snapshot } from "./conversation-tracker.ts";
 import { extractDelta } from "./extract-delta.ts";
 import { resolveAgyModelId, type AgyModelMeta } from "./agy-models.ts";
-import { boundTurnMessages, mapPrompt } from "./prompt-mapper.ts";
+import { mapPrompt } from "./prompt-mapper.ts";
 import { runAgyStream } from "./agy-runner.ts";
 import { SessionStore } from "./session-store.ts";
 
@@ -96,14 +96,13 @@ export function streamAgy(
       const before = conversationId ? null : await snapshot(runtime.config.conversationsDir);
       remainingTimeout();
 
-      const turnMessages = conversationId
-        ? boundTurnMessages(context.messages)
-        : context.messages;
-      const prompt = mapPrompt(turnMessages);
+      // Only the latest user text — no pi history/tool harness.
+      // Multi-turn context lives in the agy conversation binding.
+      const prompt = mapPrompt(context.messages);
       remainingTimeout();
 
-      if (conversationId && !prompt.trim()) {
-        throw new Error("agy bound turn has no current-turn text");
+      if (!prompt.trim()) {
+        throw new Error("agy turn has no user text");
       }
 
       const resolved = resolveAgyModelId(

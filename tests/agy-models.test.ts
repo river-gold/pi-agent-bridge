@@ -86,10 +86,23 @@ describe("toPiModels", () => {
 });
 
 describe("buildThinkingLevelMap", () => {
-  it("maps levels onto available variants", () => {
+  it("maps only suffixes that match pi level names", () => {
     const map = buildThinkingLevelMap(["high", "low"]);
+    assert.equal(map.off, null);
+    assert.equal(map.minimal, null);
     assert.equal(map.low, "low");
+    assert.equal(map.medium, null);
     assert.equal(map.high, "high");
-    assert.equal(map.medium, "high");
+    assert.equal(map.xhigh, null);
+    assert.equal(map.max, null);
+  });
+
+  it("exposes low/medium/high when all three exist", () => {
+    const map = buildThinkingLevelMap(["high", "medium", "low"]);
+    assert.equal(map.low, "low");
+    assert.equal(map.medium, "medium");
+    assert.equal(map.high, "high");
+    assert.equal(map.xhigh, null);
+    assert.equal(map.max, null);
   });
 });

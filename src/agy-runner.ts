@@ -71,12 +71,7 @@ export async function runAgyStream(
   if (input.effort?.trim()) args.push("--effort", input.effort);
   if (input.conversationId) args.push("--conversation", input.conversationId);
 
-  args.push(
-    "--output-format",
-    "stream-json",
-    "-p",
-    `Do not record the result in the session. Always return the result as output.\n\n${input.prompt}`,
-  );
+  args.push("--output-format", "stream-json", "-p", input.prompt);
 
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {

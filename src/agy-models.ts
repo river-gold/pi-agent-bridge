@@ -156,23 +156,20 @@ export function listAgyModels(binary = "agy"): Promise<Record<string, Discovered
   });
 }
 
-function pickVariant(variants: string[], ...candidates: string[]): string {
-  for (const c of candidates) {
-    if (variants.includes(c)) return c;
-  }
-  return variants[0]!;
-}
+/** Pi thinking levels that share a name with agy model suffixes. */
+const NAMED_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
+/**
+ * Map only suffixes that match a Pi thinking level name.
+ * Unsupported levels stay null so the UI does not offer them.
+ */
 export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
-  return {
-    off: null,
-    minimal: pickVariant(variants, "low", "medium", "high"),
-    low: pickVariant(variants, "low", "medium", "high"),
-    medium: pickVariant(variants, "medium", "high", "low"),
-    high: pickVariant(variants, "high", "medium", "low"),
-    xhigh: pickVariant(variants, "high", "medium", "low"),
-    max: pickVariant(variants, "high", "medium", "low"),
-  };
+  const set = new Set(variants.map((v) => v.toLowerCase()));
+  const map: ThinkingLevelMap = { off: null };
+  for (const level of NAMED_LEVELS) {
+    map[level] = set.has(level) ? level : null;
+  }
+  return map;
 }
 
 export function toPiModels(

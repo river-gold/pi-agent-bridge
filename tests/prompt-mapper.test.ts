@@ -1,73 +1,60 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { boundTurnMessages, mapPrompt } from "../src/prompt-mapper.ts";
+import { mapPrompt } from "../src/prompt-mapper.ts";
 import type { Message } from "@earendil-works/pi-ai";
 
+const assistant = (text: string): Message => ({
+  role: "assistant",
+  content: [{ type: "text", text }],
+  api: "agy-cli",
+  provider: "agy",
+  model: "m",
+  usage: {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  },
+  stopReason: "stop",
+  timestamp: 1,
+});
+
 describe("mapPrompt", () => {
-  it("single user message is raw text", () => {
+  it("returns single user message as-is", () => {
     const messages: Message[] = [
       { role: "user", content: "hello", timestamp: 1 },
     ];
     assert.equal(mapPrompt(messages), "hello");
   });
 
-  it("multi-message wraps history and current request", () => {
+  it("ignores history and returns only latest user text", () => {
     const messages: Message[] = [
-      { role: "user", content: "hello", timestamp: 1 },
-      {
-        role: "assistant",
-        content: [{ type: "text", text: "hi" }],
-        api: "agy-cli",
-        provider: "agy",
-        model: "m",
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "stop",
-        timestamp: 2,
-      },
-      { role: "user", content: "again", timestamp: 3 },
+      { role: "user", content: "old", timestamp: 1 },
+      assistant("reply"),
+      { role: "user", content: "only this", timestamp: 3 },
     ];
-    const result = mapPrompt(messages);
-    assert.match(result, /\[Previous Conversation Context\]/);
-    assert.match(result, /User: hello/);
-    assert.match(result, /Assistant: hi/);
-    assert.match(result, /Current Request:/);
-    assert.match(result, /again/);
+    assert.equal(mapPrompt(messages), "only this");
   });
-});
 
-describe("boundTurnMessages", () => {
-  it("returns messages after last assistant", () => {
+  it("ignores tool results after last user", () => {
     const messages: Message[] = [
-      { role: "user", content: "a", timestamp: 1 },
+      { role: "user", content: "do it", timestamp: 1 },
+      assistant("calling tool"),
       {
-        role: "assistant",
-        content: [{ type: "text", text: "b" }],
-        api: "agy-cli",
-        provider: "agy",
-        model: "m",
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "stop",
-        timestamp: 2,
+        role: "toolResult",
+        toolCallId: "1",
+        toolName: "bash",
+        content: [{ type: "text", text: "huge output" }],
+        isError: false,
+        timestamp: 3,
       },
-      { role: "user", content: "c", timestamp: 3 },
     ];
-    const bound = boundTurnMessages(messages);
-    assert.equal(bound.length, 1);
-    assert.equal(bound[0]?.role, "user");
-    if (bound[0]?.role === "user") assert.equal(bound[0].content, "c");
+    assert.equal(mapPrompt(messages), "do it");
+  });
+
+  it("returns empty when no user message", () => {
+    assert.equal(mapPrompt([assistant("x")]), "");
   });
 });

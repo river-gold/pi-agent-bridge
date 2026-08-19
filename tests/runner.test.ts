@@ -33,6 +33,10 @@ exit 0
       assert.match(result.stdout, /gemini-3\.7-flash-high/);
       assert.match(result.stdout, /-p/);
       assert.match(result.stdout, /test prompt/);
+      assert.doesNotMatch(
+        result.stdout,
+        /Do not record the result in the session/,
+      );
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
