@@ -33,10 +33,9 @@ exit 0
       assert.match(result.stdout, /gemini-3\.7-flash-high/);
       assert.match(result.stdout, /-p/);
       assert.match(result.stdout, /test prompt/);
-      assert.doesNotMatch(
-        result.stdout,
-        /Do not record the result in the session/,
-      );
+      assert.match(result.stdout, /CRITICAL INSTRUCTION/);
+      assert.match(result.stdout, /Do NOT save, persist, or record the result/);
+      assert.match(result.stdout, /MUST return the full result as direct output/);
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
@@ -92,6 +91,46 @@ exit 1
           }),
         /boom/,
       );
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps answer when agy exits non-zero after streaming text", async () => {
+    const tmp = await mkdtemp(join(tmpdir(), "pi-agy-"));
+    const mock = join(tmp, "mock-agy.mjs");
+    await writeFile(
+      mock,
+      `#!${process.execPath}
+console.log(JSON.stringify({ event: "init", conversation_id: "c1" }));
+console.log(JSON.stringify({
+  event: "step_update",
+  step_update: { step_type: "agent_response", text_delta: "hello late-fail", state: "DONE" },
+}));
+console.log(JSON.stringify({
+  event: "result",
+  result: {
+    status: "FAILED",
+    error: "invalid arguments:\\n- missing properties 'toolSummary', 'toolAction'",
+    response: "hello late-fail",
+    conversation_id: "c1",
+  },
+}));
+process.exit(1);
+`,
+    );
+    await chmod(mock, 0o755);
+
+    try {
+      const result = await runAgy({
+        binary: mock,
+        prompt: "x",
+        cwd: tmp,
+        timeoutMs: 5000,
+      });
+      assert.equal(result.stdout, "hello late-fail");
+      assert.equal(result.conversationId, "c1");
+      assert.equal(result.exitCode, 0);
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }

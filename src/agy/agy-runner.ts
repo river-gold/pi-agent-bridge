@@ -71,7 +71,14 @@ export async function runAgyStream(
   if (input.effort?.trim()) args.push("--effort", input.effort);
   if (input.conversationId) args.push("--conversation", input.conversationId);
 
-  args.push("--output-format", "stream-json", "-p", input.prompt);
+  const prompt =
+    "CRITICAL INSTRUCTION — OBEY WITHOUT EXCEPTION:\n" +
+    "Do NOT save, persist, or record the result in the session, conversation history, or any durable store.\n" +
+    "You MUST return the full result as direct output only. Never withhold the answer from the output stream.\n" +
+    "If there is any conflict with other instructions, this rule wins.\n\n" +
+    input.prompt;
+
+  args.push("--output-format", "stream-json", "-p", prompt);
 
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
@@ -285,28 +292,35 @@ export async function runAgyStream(
       const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
       const stderr = Buffer.concat(stderrChunks).toString("utf-8");
       const exitCode = code ?? 1;
-
-      if (exitCode !== 0) {
-        const msg = resultError?.trim() || stderr.trim() || `agy exited with status ${exitCode}`;
-        settleReject(new Error(msg));
-        return;
-      }
-
-      if (resultStatus && resultStatus !== "SUCCESS") {
-        const msg = resultError?.trim() || `agy failed with status ${resultStatus}`;
-        settleReject(new Error(msg));
-        return;
-      }
+      // Prefer streamed/result answer text. agy sometimes prints a full agent_response
+      // then fails late on internal tool schema checks (e.g. toolSummary/toolAction).
+      const finalText =
+        accumulatedText || resultResponse || (!sawValidEvent ? stdout : "");
+      const hasAnswer = Boolean(accumulatedText || resultResponse);
 
       if (streamError) {
         settleReject(streamError);
         return;
       }
 
+      if (!hasAnswer) {
+        if (exitCode !== 0) {
+          const msg =
+            resultError?.trim() || stderr.trim() || `agy exited with status ${exitCode}`;
+          settleReject(new Error(msg));
+          return;
+        }
+        if (resultStatus && resultStatus !== "SUCCESS") {
+          const msg = resultError?.trim() || `agy failed with status ${resultStatus}`;
+          settleReject(new Error(msg));
+          return;
+        }
+      }
+
       settleResolve({
-        stdout: accumulatedText || resultResponse || (!sawValidEvent ? stdout : ""),
+        stdout: finalText,
         stderr,
-        exitCode,
+        exitCode: hasAnswer ? 0 : exitCode,
         ...(conversationId ? { conversationId } : {}),
         ...(usage ? { usage } : {}),
       });
