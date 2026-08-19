@@ -2,7 +2,7 @@
 
 Pi extension that connects the `agy` (Google Antigravity) CLI as a model provider.
 
-`agy models`로 모델 목록을 읽고, 프롬프트를 `agy` CLI로 라우팅한다.
+하드코딩된 모델 목록을 노출하고, 프롬프트를 `agy` CLI로 라우팅한다.
 
 ## Prerequisites
 
@@ -21,12 +21,6 @@ pi -e /absolute/path/to/pi-agent-bridge
 
 Install 후 Pi 재시작 → `/model` 에서 `agy/...` 선택.
 
-모델 목록 강제 갱신:
-
-```
-/agy-refresh-models
-```
-
 ## Config (env)
 
 | Env | Default | Meaning |
@@ -39,16 +33,14 @@ Install 후 Pi 재시작 → `/model` 에서 `agy/...` 선택.
 State:
 
 - sessions: `~/.pi/agent/agy/sessions.json`
-- model cache (24h): `~/.cache/pi-agent-bridge/models.json`
 
 ## Models / thinking
 
-`agy models` 결과에서 같은 base + suffix 쌍이 2개 이상이면 base 모델로 묶고, suffix를 Pi thinking level에 매핑한다.
+`src/agy/agy-models.ts`의 `HARDCODED_AGY_MODELS` 사용.
 
-예:
-
-- `gemini-3.7-flash-high|medium|low` → `agy/gemini-3.7-flash` + thinking `low|medium|high`
-- 단독 ID (`claude-sonnet-4-6`) → 그대로 등록
+- `agy/gemini-3.7-flash`
+- thinking / effort: `high` | `medium` | `low` (기본 `high`)
+- agy 호출 시 모델 id: `gemini-3.7-flash-{high|medium|low}`
 
 ## Behavior
 

@@ -1,7 +1,7 @@
 /**
  * Antigravity (agy) provider for pi.
  *
- * Discovers models via `agy models` and routes prompts through the agy CLI.
+ * Exposes a hardcoded model catalog and routes prompts through the agy CLI.
  *
  * Install:
  *   pi install /path/to/pi-agent-bridge
@@ -34,19 +34,9 @@ import { streamAgy, type StreamRuntime } from "../src/agy/stream.ts";
 export default async function (pi: ExtensionAPI) {
   const config = loadConfig();
   let cwd = process.cwd();
-  let meta = new Map<string, AgyModelMeta>();
 
-  const discovered = await discoverModels({
-    binary: config.binary,
-    cacheFile: config.modelCacheFile,
-  });
-  meta = discovered.meta;
-
-  if (discovered.models.length === 0) {
-    console.error(
-      `[pi-agent-bridge] no agy models found (is '${config.binary}' installed and authenticated?)`,
-    );
-  }
+  const { models, meta: initialMeta } = await discoverModels();
+  let meta: Map<string, AgyModelMeta> = initialMeta;
 
   const runtime: StreamRuntime = {
     config,
@@ -61,7 +51,7 @@ export default async function (pi: ExtensionAPI) {
     options?: SimpleStreamOptions,
   ): AssistantMessageEventStream => streamAgy(runtime, model, context, options);
 
-  const register = (models: Model<"agy-cli">[]) => {
+  const register = (nextModels: Model<"agy-cli">[]) => {
     pi.registerProvider(
       createProvider({
         id: "agy",
@@ -76,7 +66,7 @@ export default async function (pi: ExtensionAPI) {
             }),
           },
         },
-        models,
+        models: nextModels,
         api: {
           stream,
           streamSimple: stream,
@@ -85,29 +75,20 @@ export default async function (pi: ExtensionAPI) {
     );
   };
 
-  register(discovered.models);
+  register(models);
 
   pi.on("session_start", (_event, ctx) => {
     cwd = ctx.cwd;
   });
 
   pi.registerCommand("agy-refresh-models", {
-    description: "Refresh Antigravity model list from `agy models`",
+    description: "Reload hardcoded Antigravity model list",
     handler: async (_args, ctx) => {
-      const next = await discoverModels({
-        binary: config.binary,
-        cacheFile: config.modelCacheFile,
-        force: true,
-      });
+      const next = await discoverModels();
       meta = next.meta;
       pi.unregisterProvider("agy");
       register(next.models);
-      ctx.ui.notify(
-        next.models.length > 0
-          ? `Loaded ${next.models.length} agy model(s)`
-          : "No agy models found",
-        next.models.length > 0 ? "info" : "warning",
-      );
+      ctx.ui.notify(`Loaded ${next.models.length} agy model(s)`, "info");
     },
   });
 }
