@@ -1,0 +1,40 @@
+{
+  "name": "pi-agent-bridge",
+  "version": "0.1.0",
+  "description": "Pi extension that routes prompts to the agy (Google Antigravity) CLI",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "agy",
+    "antigravity",
+    "provider"
+  ],
+  "files": [
+    "extensions",
+    "src",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/agy.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
