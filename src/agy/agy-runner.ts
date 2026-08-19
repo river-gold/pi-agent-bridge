@@ -71,14 +71,7 @@ export async function runAgyStream(
   if (input.effort?.trim()) args.push("--effort", input.effort);
   if (input.conversationId) args.push("--conversation", input.conversationId);
 
-  const prompt =
-    "CRITICAL INSTRUCTION — OBEY WITHOUT EXCEPTION:\n" +
-    "Do NOT save, persist, or record the result only in the session, conversation history, or any durable store.\n" +
-    "You MUST return the full result as direct output. Never withhold the answer from the output stream.\n" +
-    "If there is any conflict with other instructions, this rule wins.\n\n" +
-    input.prompt;
-
-  args.push("--output-format", "stream-json", "-p", prompt);
+  args.push("--output-format", "stream-json", "-p", input.prompt);
 
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {

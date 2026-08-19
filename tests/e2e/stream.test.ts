@@ -28,7 +28,7 @@ describe("e2e/stream", () => {
 if (args[0] === "models") { console.log("e2e-model\\tE2E"); process.exit(0); }
 if (!has("--output-format") || flagValue("--output-format") !== "stream-json") process.exit(41);
 const p = promptOf();
-if (!p.includes("CRITICAL INSTRUCTION") || !p.endsWith("FIRST_ONLY")) process.exit(42);
+if (p !== "FIRST_ONLY") process.exit(42);
 emit([
   { event: "init", conversation_id: "conv-main" },
   { event: "step_update", step_update: { step_type: "agent_response", text_delta: "hello ", state: "ACTIVE", conversation_id: "conv-main" } },
@@ -65,8 +65,7 @@ process.exit(0);
       assert.equal(inv.length, 1);
       assert.ok(inv[0]!.argv.includes("--dangerously-skip-permissions"));
       assert.ok(inv[0]!.argv.includes("--add-dir"));
-      assert.match(promptArg(inv[0]!.argv), /CRITICAL INSTRUCTION/);
-      assert.ok(promptArg(inv[0]!.argv).endsWith("FIRST_ONLY"));
+      assert.equal(promptArg(inv[0]!.argv), "FIRST_ONLY");
       assert.ok(!promptArg(inv[0]!.argv).includes("SYSTEM_PROMPT"));
       assert.ok(!inv[0]!.argv.includes("--conversation"));
     } finally {
@@ -84,7 +83,7 @@ if (args[0] === "models") process.exit(0);
 const p = promptOf();
 const conv = flagValue("--conversation");
 if (!conv) {
-  if (!p.endsWith("turn-1")) process.exit(50);
+  if (p !== "turn-1") process.exit(50);
   emit([
     { event: "init", conversation_id: "conv-mt" },
     { event: "step_update", step_update: { step_type: "agent_response", text_delta: "A1", state: "DONE" } },
@@ -93,10 +92,8 @@ if (!conv) {
   process.exit(0);
 }
 if (conv !== "conv-mt") process.exit(51);
-if (!p.endsWith("turn-2")) process.exit(52);
-if (p.includes("A1") || p.includes("Previous Conversation") || p.includes("SYSTEM")) process.exit(53);
-// history user text must not be re-sent; allow only as distinct current turn
-if (p.includes("turn-1")) process.exit(53);
+if (p !== "turn-2") process.exit(52);
+if (p.includes("turn-1") || p.includes("A1") || p.includes("Previous Conversation") || p.includes("SYSTEM")) process.exit(53);
 emit([
   { event: "step_update", step_update: { step_type: "agent_response", text_delta: "A2", state: "DONE" } },
   { event: "result", result: { status: "SUCCESS", response: "A2", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 }, conversation_id: "conv-mt" } },
@@ -130,9 +127,9 @@ process.exit(0);
 
       const inv = await readInvocations(env);
       assert.equal(inv.length, 2);
-      assert.ok(promptArg(inv[0]!.argv).endsWith("turn-1"));
+      assert.equal(promptArg(inv[0]!.argv), "turn-1");
       assert.ok(!inv[0]!.argv.includes("--conversation"));
-      assert.ok(promptArg(inv[1]!.argv).endsWith("turn-2"));
+      assert.equal(promptArg(inv[1]!.argv), "turn-2");
       assert.equal(inv[1]!.argv[inv[1]!.argv.indexOf("--conversation") + 1], "conv-mt");
     } finally {
       await destroyE2EEnv(env);
@@ -246,7 +243,7 @@ process.exit(0);
         env,
         `
 const p = promptOf();
-const id = p.endsWith("s1") ? "conv-s1" : p.endsWith("s2") ? "conv-s2" : null;
+const id = p === "s1" ? "conv-s1" : p === "s2" ? "conv-s2" : null;
 if (!id) process.exit(80);
 emit([
   { event: "init", conversation_id: id },
@@ -440,7 +437,7 @@ process.exit(0);
 const p = promptOf();
 if (p.includes("SYSTEM_PROMPT_MUST_NOT_LEAK")) process.exit(90);
 if (p.includes("TOOL_MUST_NOT_LEAK")) process.exit(91);
-if (!p.includes("CRITICAL INSTRUCTION") || !p.endsWith("pure-user")) process.exit(92);
+if (p !== "pure-user") process.exit(92);
 emit([
   { event: "init", conversation_id: "c-pure" },
   { event: "step_update", step_update: { step_type: "agent_response", text_delta: "ok", state: "DONE" } },
