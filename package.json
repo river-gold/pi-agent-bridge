@@ -1,7 +1,7 @@
 {
   "name": "pi-agent-bridge",
   "version": "0.1.0",
-  "description": "Pi extension that routes prompts to agy and Codex ACP agents",
+  "description": "Pi extension that routes prompts to agy, Codex ACP, and Grok ACP agents",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -12,6 +12,7 @@
     "agy",
     "antigravity",
     "codex",
+    "grok",
     "acp",
     "provider"
   ],
@@ -23,7 +24,8 @@
   "pi": {
     "extensions": [
       "./extensions/agy.ts",
-      "./extensions/codex.ts"
+      "./extensions/codex.ts",
+      "./extensions/grok.ts"
     ]
   },
   "scripts": {

@@ -1,29 +1,31 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
-import type { CodexConfig } from "./config.ts";
+import type { GrokConfig } from "./config.ts";
 
-export interface CodexTurnInput {
-  /** Bound ACP session id, if already known. */
+export interface GrokTurnInput {
   sessionId?: string;
   cwd: string;
   model: string;
-  /** Always sent as reasoning_effort (none removed). */
+  /** Sent as session/set_mode modeId (low|medium|high|xhigh). */
   effort: string;
   prompt: string;
-  mode?: string;
   timeoutMs?: number;
   abortSignal?: AbortSignal;
   onText?: (text: string) => void;
 }
 
-export interface CodexTurnResult {
+export interface GrokTurnResult {
   sessionId: string;
   text: string;
   stopReason: string;
 }
 
-type SessionUpdate = { sessionUpdate: string; content?: { type?: string; text?: string }; [key: string]: unknown };
+type SessionUpdate = {
+  sessionUpdate: string;
+  content?: { type?: string; text?: string };
+  [key: string]: unknown;
+};
 type SessionListener = (update: SessionUpdate) => void;
 
 function createAbortError(reason?: unknown): Error {
@@ -57,30 +59,33 @@ function pickPermissionOption(
 }
 
 /**
- * Long-lived client over `npx @agentclientprotocol/codex-acp`.
+ * Long-lived client over `grok agent --always-approve stdio`.
  * One process, many ACP sessions (keyed externally by Pi session id).
+ *
+ * Grok ACP differences vs codex-acp:
+ * - model: extension method `session/set_model` { modelId }
+ * - effort: `session/set_mode` with modeId = low|medium|high|xhigh
+ * - no session/set_config_option
  */
-export class CodexAcpClient {
-  private readonly config: CodexConfig;
+export class GrokAcpClient {
+  private readonly config: GrokConfig;
   private child: ChildProcess | null = null;
   private connection: acp.ClientConnection | null = null;
   private ctx: acp.ClientContext | null = null;
   private startPromise: Promise<void> | null = null;
   private readonly listeners = new Map<string, SessionListener>();
-  /** Last applied model/effort per ACP session. */
-  private readonly applied = new Map<string, { model: string; effort: string; mode: string }>();
+  private readonly applied = new Map<string, { model: string; effort: string }>();
 
-  constructor(config: CodexConfig) {
+  constructor(config: GrokConfig) {
     this.config = config;
   }
 
-  async runTurn(input: CodexTurnInput): Promise<CodexTurnResult> {
+  async runTurn(input: GrokTurnInput): Promise<GrokTurnResult> {
     if (input.abortSignal?.aborted) {
       throw createAbortError(input.abortSignal.reason);
     }
     await this.ensureStarted();
     const ctx = this.ctx!;
-    const mode = input.mode ?? this.config.mode;
     const timeoutMs = input.timeoutMs ?? this.config.timeoutMs;
 
     let sessionId = input.sessionId;
@@ -91,7 +96,6 @@ export class CodexAcpClient {
       });
       sessionId = created.sessionId;
     } else if (!this.applied.has(sessionId)) {
-      // Process may have restarted; try resume before falling back to new.
       try {
         await ctx.request(acp.methods.agent.session.resume, {
           sessionId,
@@ -107,7 +111,7 @@ export class CodexAcpClient {
       }
     }
 
-    await this.applySessionConfig(sessionId, input.model, input.effort, mode);
+    await this.applySessionConfig(sessionId, input.model, input.effort);
 
     let accumulated = "";
     this.listeners.set(sessionId, (update) => {
@@ -164,7 +168,7 @@ export class CodexAcpClient {
       );
 
       if (timeoutController.signal.aborted && !input.abortSignal?.aborted) {
-        throw new Error("codex-acp timed out");
+        throw new Error("grok-acp timed out");
       }
       if (input.abortSignal?.aborted) {
         throw createAbortError(input.abortSignal.reason);
@@ -207,31 +211,24 @@ export class CodexAcpClient {
     sessionId: string,
     model: string,
     effort: string,
-    mode: string,
   ): Promise<void> {
     const ctx = this.ctx!;
     const prev = this.applied.get(sessionId);
-    if (!prev || prev.mode !== mode) {
+
+    if (!prev || prev.model !== model) {
+      await ctx.request("session/set_model", {
+        sessionId,
+        modelId: model,
+      });
+    }
+    // Grok maps reasoning effort onto session modes (low|medium|high|xhigh).
+    if (!prev || prev.effort !== effort) {
       await ctx.request(acp.methods.agent.session.setMode, {
         sessionId,
-        modeId: mode,
+        modeId: effort,
       });
     }
-    if (!prev || prev.model !== model) {
-      await ctx.request(acp.methods.agent.session.setConfigOption, {
-        sessionId,
-        configId: "model",
-        value: model,
-      });
-    }
-    if (!prev || prev.effort !== effort) {
-      await ctx.request(acp.methods.agent.session.setConfigOption, {
-        sessionId,
-        configId: "reasoning_effort",
-        value: effort,
-      });
-    }
-    this.applied.set(sessionId, { model, effort, mode });
+    this.applied.set(sessionId, { model, effort });
   }
 
   private ensureStarted(): Promise<void> {
@@ -266,7 +263,7 @@ export class CodexAcpClient {
     });
 
     if (!child.stdin || !child.stdout) {
-      throw new Error("failed to spawn codex-acp: missing stdio pipes");
+      throw new Error("failed to spawn grok-acp: missing stdio pipes");
     }
 
     const stream = acp.ndJsonStream(
@@ -275,7 +272,7 @@ export class CodexAcpClient {
     );
 
     const connection = acp
-      .client({ name: "pi-agent-bridge-codex" })
+      .client({ name: "pi-agent-bridge-grok" })
       .onRequest(acp.methods.client.session.requestPermission, async (req) => {
         const optionId = pickPermissionOption(req.params.options);
         return {
@@ -300,20 +297,20 @@ export class CodexAcpClient {
         clientCapabilities: {
           fs: { readTextFile: false, writeTextFile: false },
         },
-        clientInfo: { name: "pi-agent-bridge-codex", version: "0.1.0" },
+        clientInfo: { name: "pi-agent-bridge-grok", version: "0.1.0" },
       });
     } catch (error) {
       const detail = stderr.trim();
       await this.dispose();
       const msg = error instanceof Error ? error.message : String(error);
       throw new Error(
-        detail ? `codex-acp initialize failed: ${msg}\n${detail}` : `codex-acp initialize failed: ${msg}`,
+        detail ? `grok-acp initialize failed: ${msg}\n${detail}` : `grok-acp initialize failed: ${msg}`,
       );
     }
 
     if (child.exitCode !== null) {
       throw new Error(
-        `codex-acp exited during startup (code ${child.exitCode})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        `grok-acp exited during startup (code ${child.exitCode})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
       );
     }
   }
