@@ -1,33 +1,33 @@
 # pi-agent-bridge
 
-Pi extension that routes prompts to external coding agents:
+Pi extension으로 외부 코딩 에이전트에 프롬프트를 라우팅한다.
 
 - `agy` — Google Antigravity CLI
 - `codex` — Codex via Agent Client Protocol (`@agentclientprotocol/codex-acp`)
 - `grok` — Grok via `grok agent stdio` (ACP)
 - `cursor` — Cursor via `cursor-agent acp`
 
-Korean docs: [README_ko.md](./README_ko.md)
+영문 문서: [README.md](./README.md)
 
-## Prerequisites
+## 사전 요구사항
 
 - Pi (`@earendil-works/pi-coding-agent`)
-- **agy:** `agy` CLI installed and authenticated
-- **codex:** network for `npx @agentclientprotocol/codex-acp@1.6.0`, plus Codex auth (`codex` login / API key)
-- **grok:** `grok` CLI installed and authenticated (`grok` login)
-- **cursor:** `cursor-agent` CLI installed and authenticated (`cursor-agent login`)
+- **agy:** `agy` CLI 설치 및 인증
+- **codex:** `npx @agentclientprotocol/codex-acp@1.6.0`용 네트워크, Codex 인증 (`codex` login / API key)
+- **grok:** `grok` CLI 설치 및 인증 (`grok` login)
+- **cursor:** `cursor-agent` CLI 설치 및 인증 (`cursor-agent login`)
 
-## Install
+## 설치
 
 ```bash
-# local checkout
+# 로컬 checkout
 pi install /absolute/path/to/pi-agent-bridge
 
-# one-off
+# 일회성
 pi -e /absolute/path/to/pi-agent-bridge
 ```
 
-Restart Pi, then pick a model under `/model`:
+Pi 재시작 후 `/model`에서 선택:
 
 - `agy/...`
 - `codex/...`
@@ -43,9 +43,9 @@ Restart Pi, then pick a model under `/model`:
 | Env | Default | Meaning |
 |---|---|---|
 | `AGY_BINARY` | `agy` | CLI binary |
-| `AGY_TIMEOUT_MS` | `300000` | per-turn timeout |
-| `AGY_EXTRA_ARGS` | _(empty)_ | extra args, space-separated |
-| `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation bind discovery |
+| `AGY_TIMEOUT_MS` | `300000` | 턴 타임아웃 |
+| `AGY_EXTRA_ARGS` | _(empty)_ | 추가 args (공백 구분) |
+| `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation 바인딩 탐색 |
 
 State: `~/.pi/agent/agy/sessions.json`
 
@@ -54,14 +54,14 @@ State: `~/.pi/agent/agy/sessions.json`
 `src/agy/agy-models.ts` → `HARDCODED_AGY_MODELS`
 
 - `agy/gemini-3.7-flash`
-- thinking: `high` | `medium` | `low` (default `high`)
+- thinking: `high` | `medium` | `low` (기본 `high`)
 - agy `--model`: `gemini-3.7-flash-{high|medium|low}`
 
 ### Behavior / security
 
-- Only the latest user text is sent (no history / tools / system harness)
-- Multi-turn context uses the agy conversation binding
-- Every call uses `--dangerously-skip-permissions`
+- 최신 user 입력만 전달 (history / tool / system harness 제외)
+- 멀티턴은 agy conversation 바인딩
+- 모든 호출에 `--dangerously-skip-permissions`
 
 ---
 
@@ -73,12 +73,12 @@ State: `~/.pi/agent/agy/sessions.json`
 |---|---|---|
 | `CODEX_ACP_COMMAND` | `npx` | launcher |
 | `CODEX_ACP_ARGS` | `-y @agentclientprotocol/codex-acp@1.6.0` | agent args |
-| `CODEX_ACP_TIMEOUT_MS` | `300000` | per-turn timeout |
+| `CODEX_ACP_TIMEOUT_MS` | `300000` | 턴 타임아웃 |
 | `CODEX_ACP_MODE` | `agent-full-access` | ACP session mode |
 
 State: `~/.pi/agent/codex/sessions.json`
 
-> Latest npm tag observed: `1.6.0`. Override the version with `CODEX_ACP_ARGS` if needed.
+> npm 최신 태그는 `1.6.0`. 다른 버전은 `CODEX_ACP_ARGS`로 지정.
 
 ### Models / thinking
 
@@ -87,15 +87,15 @@ State: `~/.pi/agent/codex/sessions.json`
 - `codex/gpt-5.6-sol`
 - `codex/gpt-5.6-terra`
 - `codex/gpt-5.6-luna`
-- thinking / `reasoning_effort`: `low` | `medium` | `high` | `xhigh` | `max` (default `high`)
+- thinking / `reasoning_effort`: `low` | `medium` | `high` | `xhigh` | `max` (기본 `high`)
 
 ### Behavior / security
 
-- Only the latest user text is sent via `session/prompt`
-- Multi-turn uses ACP session id binding (resume while the process stays alive)
-- Permission requests are auto-approved (`allow_always` / `allow_once`)
-- Default mode: `agent-full-access`
-- Pi system prompt / tools are not forwarded
+- 최신 user 입력만 `session/prompt`로 전달
+- 멀티턴은 ACP session id 바인딩 (프로세스 생존 시 resume)
+- permission 요청은 `allow_always` / `allow_once` 자동 승인
+- 기본 mode: `agent-full-access`
+- Pi system prompt / tools 미전달
 
 ---
 
@@ -107,7 +107,7 @@ State: `~/.pi/agent/codex/sessions.json`
 |---|---|---|
 | `GROK_ACP_COMMAND` | `grok` | launcher |
 | `GROK_ACP_ARGS` | `agent --always-approve stdio` | agent args |
-| `GROK_ACP_TIMEOUT_MS` | `300000` | per-turn timeout |
+| `GROK_ACP_TIMEOUT_MS` | `300000` | 턴 타임아웃 |
 
 State: `~/.pi/agent/grok/sessions.json`
 
@@ -116,21 +116,21 @@ State: `~/.pi/agent/grok/sessions.json`
 `src/grok/models.ts` → `HARDCODED_GROK_MODELS`
 
 - `grok/grok-4.6`
-- thinking / effort: `low` | `medium` | `high` | `xhigh` (default `high`)
+- thinking / effort: `low` | `medium` | `high` | `xhigh` (기본 `high`)
 
-Grok ACP mapping:
+Grok ACP 매핑:
 
 - model → `session/set_model` `{ modelId }`
 - effort → `session/set_mode` `{ modeId }`
 
-> If the model id is not in local `grok models`, `session/set_model` may reject it with `unknown model id`.
+> 로컬 `grok models`에 없는 ID면 `session/set_model`이 `unknown model id`로 거부될 수 있음.
 
 ### Behavior / security
 
-- Only the latest user text is sent via `session/prompt`
-- Multi-turn uses ACP session id binding
-- Spawn uses `--always-approve`; permission requests are auto-approved
-- Pi system prompt / tools are not forwarded
+- 최신 user 입력만 `session/prompt`로 전달
+- 멀티턴은 ACP session id 바인딩
+- spawn에 `--always-approve`, permission 요청 자동 승인
+- Pi system prompt / tools 미전달
 
 ---
 
@@ -142,7 +142,7 @@ Grok ACP mapping:
 |---|---|---|
 | `CURSOR_ACP_COMMAND` | `cursor-agent` | launcher |
 | `CURSOR_ACP_ARGS` | `acp` | agent args |
-| `CURSOR_ACP_TIMEOUT_MS` | `300000` | per-turn timeout |
+| `CURSOR_ACP_TIMEOUT_MS` | `300000` | 턴 타임아웃 |
 | `CURSOR_ACP_MODE` | `agent` | session mode (`agent` \| `plan` \| `ask`) |
 
 State: `~/.pi/agent/cursor/sessions.json`
@@ -157,10 +157,10 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Behavior / security
 
-- Only the latest user text is sent via `session/prompt`
-- Permission requests are auto-approved (`allow-always` preferred)
-- Cursor extension methods (`cursor/ask_question`, `cursor/create_plan`, etc.) are auto-handled
-- Pi system prompt / tools are not forwarded
+- 최신 user 입력만 `session/prompt`로 전달
+- permission 자동 승인 (`allow-always` 우선)
+- `cursor/ask_question`, `cursor/create_plan` 등 extension method 자동 응답
+- Pi system prompt / tools 미전달
 
 ---
 
