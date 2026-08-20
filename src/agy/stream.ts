@@ -8,7 +8,7 @@ import {
   calculateCost,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgyConfig } from "./config.ts";
@@ -224,6 +224,31 @@ export function streamAgy(
           const outPath = join(outDir, `${sessionKey}-${Date.now()}.md`);
           const fullText = block.text;
           await writeFile(outPath, fullText, "utf8");
+          // cleanup old files: keep last 100 or 7 days
+          void (async () => {
+            try {
+              const files = await readdir(outDir);
+              const entries = await Promise.all(
+                files.map(async (f) => {
+                  const p = join(outDir, f);
+                  try {
+                    const s = await stat(p);
+                    return { path: p, mtime: s.mtimeMs };
+                  } catch { return null; }
+                }),
+              );
+              const valid = entries.filter((e): e is { path: string; mtime: number } => !!e).sort((a, b) => b.mtime - a.mtime);
+              const maxFiles = Number(process.env.AGY_OUTPUT_MAX_FILES ?? 100);
+              const maxAgeMs = Number(process.env.AGY_OUTPUT_MAX_AGE_MS ?? 365 * 24 * 60 * 60 * 1000);
+              const now = Date.now();
+              for (let i = 0; i < valid.length; i++) {
+                const e = valid[i];
+                if (i >= maxFiles || now - e.mtime > maxAgeMs) {
+                  try { await unlink(e.path); } catch {}
+                }
+              }
+            } catch {}
+          })();
           const preview = fullText.slice(0, 2000);
           block.text = `Output too large (${Buffer.byteLength(fullText, "utf8")} bytes), saved to file://${outPath}\n\nPreview (first 2000 chars):\n${preview}\n...[full output in file]`;
           // keep toolCalls, replace text with file reference
