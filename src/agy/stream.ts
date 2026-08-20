@@ -8,6 +8,9 @@ import {
   calculateCost,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { AgyConfig } from "./config.ts";
 import { findNewConversation, snapshot } from "./conversation-tracker.ts";
 import { extractDelta } from "./extract-delta.ts";
@@ -211,8 +214,20 @@ export function streamAgy(
       const delta = extractDelta(prevOutput, result.stdout, !!conversationId);
       if (!streamed && delta) pushText(delta);
 
+      // Auto file-only when total text exceeds threshold (avoid 50KB truncate + context overflow)
+      const fileThreshold = Number(process.env.AGY_OUTPUT_FILE_THRESHOLD ?? 50 * 1024);
       if (textStarted && textIndex !== null) {
         const block = output.content[textIndex];
+        if (block?.type === "text" && Buffer.byteLength(block.text, "utf8") > fileThreshold) {
+          const outDir = join(homedir(), ".pi", "agent", "agy", "outputs");
+          await mkdir(outDir, { recursive: true });
+          const outPath = join(outDir, `${sessionKey}-${Date.now()}.md`);
+          const fullText = block.text;
+          await writeFile(outPath, fullText, "utf8");
+          const preview = fullText.slice(0, 2000);
+          block.text = `Output too large (${Buffer.byteLength(fullText, "utf8")} bytes), saved to file://${outPath}\n\nPreview (first 2000 chars):\n${preview}\n...[full output in file]`;
+          // keep toolCalls, replace text with file reference
+        }
         if (block?.type === "text") {
           stream.push({
             type: "text_end",
