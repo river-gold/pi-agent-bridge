@@ -113,19 +113,22 @@ export function streamAgy(
 
       let streamed = false;
       let textStarted = false;
-      const contentIndex = 0;
+      let textIndex: number | null = null;
+      const toolIndices = new Map<string, number>();
 
       const pushText = (text: string) => {
         if (!text) return;
         if (!textStarted) {
+          textIndex = output.content.length;
           output.content.push({ type: "text", text: "" });
-          stream.push({ type: "text_start", contentIndex, partial: output });
+          stream.push({ type: "text_start", contentIndex: textIndex, partial: output });
           textStarted = true;
         }
-        const block = output.content[contentIndex];
+        if (textIndex === null) return;
+        const block = output.content[textIndex];
         if (block?.type === "text") {
           block.text += text;
-          stream.push({ type: "text_delta", contentIndex, delta: text, partial: output });
+          stream.push({ type: "text_delta", contentIndex: textIndex, delta: text, partial: output });
         }
         streamed = true;
       };
@@ -149,6 +152,46 @@ export function streamAgy(
           if (event.type === "text" && event.text) {
             pushText(event.text);
           }
+          if (event.type === "tool_start") {
+            const idx = output.content.length;
+            const toolCall = {
+              type: "toolCall" as const,
+              id: event.id,
+              name: event.name,
+              arguments: event.args,
+            };
+            output.content.push(toolCall);
+            toolIndices.set(event.id, idx);
+            stream.push({ type: "toolcall_start", contentIndex: idx, partial: output });
+          }
+          if (event.type === "tool_end") {
+            let idx = toolIndices.get(event.id);
+            if (idx === undefined) {
+              const toolCall = {
+                type: "toolCall" as const,
+                id: event.id,
+                name: event.name,
+                arguments: event.args,
+              };
+              output.content.push(toolCall);
+              idx = output.content.length - 1;
+              stream.push({ type: "toolcall_start", contentIndex: idx, partial: output });
+              stream.push({ type: "toolcall_end", contentIndex: idx, toolCall, partial: output });
+            } else {
+              const existing = output.content[idx] as { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
+              stream.push({ type: "toolcall_end", contentIndex: idx, toolCall: existing, partial: output });
+            }
+            if (event.output) {
+              const out = event.output.length > 4000 ? event.output.slice(0, 4000) + "\n...[truncated]" : event.output;
+              const alias: Record<string, string> = {
+                grep_search: "rg",
+                list_dir: "ls",
+                view_file: "read",
+              };
+              const displayName = alias[event.name] ?? event.name;
+              pushText(`\n[${displayName}] output:\n${out}\n`);
+            }
+          }
         },
       );
 
@@ -168,12 +211,12 @@ export function streamAgy(
       const delta = extractDelta(prevOutput, result.stdout, !!conversationId);
       if (!streamed && delta) pushText(delta);
 
-      if (textStarted) {
-        const block = output.content[contentIndex];
+      if (textStarted && textIndex !== null) {
+        const block = output.content[textIndex];
         if (block?.type === "text") {
           stream.push({
             type: "text_end",
-            contentIndex,
+            contentIndex: textIndex,
             content: block.text,
             partial: output,
           });

@@ -27,7 +27,9 @@ export interface RunAgyResult {
 
 export type AgyStreamEvent =
   | { type: "text"; text: string }
-  | { type: "conversation"; id: string };
+  | { type: "conversation"; id: string }
+  | { type: "tool_start"; id: string; name: string; args: Record<string, unknown> }
+  | { type: "tool_end"; id: string; name: string; args: Record<string, unknown>; output?: string };
 
 function createAbortError(reason?: unknown): Error {
   if (reason instanceof Error) {
@@ -223,6 +225,19 @@ export async function runAgyStream(
           } else if (textDelta) {
             accumulatedText += textDelta;
             emitEvent({ type: "text", text: textDelta });
+          }
+        }
+        if (stepType === "tool" && typeof step.tool_name === "string") {
+          const toolName = step.tool_name as string;
+          const toolInfo = (step.tool_info ?? {}) as Record<string, unknown>;
+          const params = (toolInfo.parameters ?? {}) as Record<string, unknown>;
+          const output = typeof toolInfo.output === "string" ? toolInfo.output : undefined;
+          const stepIndex = typeof step.step_index === "number" ? step.step_index : Date.now();
+          const toolId = `agy-tool-${stepIndex}-${toolName}`;
+          if (state === "ACTIVE") {
+            emitEvent({ type: "tool_start", id: toolId, name: toolName, args: params });
+          } else if (state === "DONE") {
+            emitEvent({ type: "tool_end", id: toolId, name: toolName, args: params, output });
           }
         }
         return;
