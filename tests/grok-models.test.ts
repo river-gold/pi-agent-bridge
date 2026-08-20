@@ -3,23 +3,17 @@ import { describe, it } from "node:test";
 import {
   buildThinkingLevelMap,
   discoverModels,
-  HARDCODED_GROK_MODELS,
   resolveGrokConfig,
   toPiModels,
 } from "../src/grok/models.ts";
 
-describe("grok hardcoded catalog", () => {
-  it("exposes grok-4.6 with low..xhigh", () => {
-    assert.deepEqual(Object.keys(HARDCODED_GROK_MODELS), ["grok-4.6"]);
-    assert.deepEqual(HARDCODED_GROK_MODELS["grok-4.6"]!.efforts, [
-      "low",
-      "medium",
-      "high",
-      "xhigh",
-    ]);
-    assert.equal(HARDCODED_GROK_MODELS["grok-4.6"]!.defaultEffort, "high");
-  });
-});
+const SAMPLE = {
+  "grok-4.6": {
+    name: "Grok 4.6",
+    defaultEffort: "high",
+    efforts: ["low", "medium", "high", "xhigh"],
+  },
+};
 
 describe("resolveGrokConfig", () => {
   const meta = {
@@ -58,8 +52,8 @@ describe("resolveGrokConfig", () => {
 });
 
 describe("toPiModels / discoverModels", () => {
-  it("registers grok-4.6 without max", async () => {
-    const { models, meta } = await discoverModels();
+  it("registers sample model without max", () => {
+    const { models, meta } = toPiModels(SAMPLE);
     assert.equal(models.length, 1);
     const g = models.find((m) => m.id === "grok-4.6");
     assert.ok(g);
@@ -71,7 +65,14 @@ describe("toPiModels / discoverModels", () => {
     assert.equal(g!.thinkingLevelMap?.max, null);
     assert.equal(g!.thinkingLevelMap?.off, null);
     assert.equal(meta.get("grok-4.6")?.defaultEffort, "high");
-    assert.equal(toPiModels().models.length, 1);
+  });
+
+  it("returns empty when config missing", async () => {
+    const { models } = await discoverModels({
+      configPath: "/tmp/pi-agent-bridge-no-models.json",
+    });
+    assert.equal(models.length, 0);
+    assert.equal(toPiModels().models.length, 0);
   });
 });
 

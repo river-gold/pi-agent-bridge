@@ -125,7 +125,13 @@ describe("e2e/codex-stream", () => {
         stateFile: join(stateDir, "sessions.json"),
         bindingLockFile: join(stateDir, "binding.lock"),
       });
-      const { models, meta } = toPiModels();
+      const { models, meta } = toPiModels({
+        "gpt-5.6-sol": {
+          name: "GPT-5.6 Sol",
+          defaultEffort: "high",
+          efforts: ["low", "medium", "high", "xhigh", "max"],
+        },
+      });
       const client = new CodexAcpClient(config);
       const runtime: CodexStreamRuntime = {
         config,

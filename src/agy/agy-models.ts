@@ -1,22 +1,20 @@
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
+import {
+  loadModelsConfigFile,
+  resolveAgentCatalog,
+  type ConfigModelEntry,
+} from "../shared/models-config.ts";
 
 const AGY_API = "agy-cli";
 const AGY_PROVIDER = "agy";
 const AGY_BASE_URL = "local://agy";
 
-/** Hardcoded catalog. Edit here to change exposed models / efforts. */
-export const HARDCODED_AGY_MODELS: Record<string, DiscoveredAgyModel> = {
-  "gemini-3.7-flash": {
-    name: "Gemini 3.7 Flash",
-    defaultVariant: "high",
-    variants: ["high", "medium", "low"],
-  },
-};
-
 export interface DiscoveredAgyModel {
   name: string;
   defaultVariant?: string;
   variants?: string[];
+  contextWindow?: number;
+  maxTokens?: number;
 }
 
 export interface AgyModelMeta {
@@ -24,13 +22,8 @@ export interface AgyModelMeta {
   variants: string[];
 }
 
-/** Pi thinking levels that share a name with agy model suffixes. */
 const NAMED_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
-/**
- * Map only suffixes that match a Pi thinking level name.
- * Unsupported levels stay null so the UI does not offer them.
- */
 export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
   const set = new Set(variants.map((v) => v.toLowerCase()));
   const map: ThinkingLevelMap = { off: null };
@@ -40,8 +33,19 @@ export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
   return map;
 }
 
+function mapConfigEntry(id: string, entry: ConfigModelEntry): DiscoveredAgyModel {
+  const variants = entry.variants ?? [];
+  return {
+    name: entry.name ?? id,
+    defaultVariant: entry.defaultVariant ?? variants[0],
+    variants,
+    ...(entry.contextWindow ? { contextWindow: entry.contextWindow } : {}),
+    ...(entry.maxTokens ? { maxTokens: entry.maxTokens } : {}),
+  };
+}
+
 export function toPiModels(
-  discovered: Record<string, DiscoveredAgyModel> = HARDCODED_AGY_MODELS,
+  discovered: Record<string, DiscoveredAgyModel> = {},
 ): { models: Model<"agy-cli">[]; meta: Map<string, AgyModelMeta> } {
   const models: Model<"agy-cli">[] = [];
   const meta = new Map<string, AgyModelMeta>();
@@ -64,8 +68,8 @@ export function toPiModels(
       ...(hasVariants ? { thinkingLevelMap: buildThinkingLevelMap(variants) } : {}),
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 200_000,
-      maxTokens: 16_384,
+      contextWindow: info.contextWindow ?? 200_000,
+      maxTokens: info.maxTokens ?? 16_384,
     });
   }
 
@@ -73,15 +77,21 @@ export function toPiModels(
   return { models, meta };
 }
 
-/** Always returns the hardcoded catalog (no `agy models` discovery). */
-export async function discoverModels(_opts?: {
+export async function loadAgyCatalog(configPath?: string): Promise<Record<string, DiscoveredAgyModel>> {
+  const { config } = await loadModelsConfigFile(configPath);
+  return resolveAgentCatalog("agy", config, mapConfigEntry);
+}
+
+export async function discoverModels(opts?: {
   binary?: string;
   cacheFile?: string;
   now?: number;
   ttlMs?: number;
   force?: boolean;
+  configPath?: string;
 }): Promise<{ models: Model<"agy-cli">[]; meta: Map<string, AgyModelMeta> }> {
-  return toPiModels(HARDCODED_AGY_MODELS);
+  const catalog = await loadAgyCatalog(opts?.configPath);
+  return toPiModels(catalog);
 }
 
 export function resolveAgyModelId(
@@ -101,7 +111,6 @@ export function resolveAgyModelId(
     meta.variants[0];
 
   if (typeof variant === "string" && variant.length > 0) {
-    // agy exposes effort as model id suffix: gemini-3.7-flash-high
     return { model: `${modelId}-${variant}` };
   }
   return { model: modelId };

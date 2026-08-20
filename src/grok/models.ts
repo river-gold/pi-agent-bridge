@@ -1,24 +1,20 @@
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
+import {
+  loadModelsConfigFile,
+  resolveAgentCatalog,
+  type ConfigModelEntry,
+} from "../shared/models-config.ts";
 
 const API = "grok-acp";
 const PROVIDER = "grok";
 const BASE_URL = "local://grok-acp";
 
-const EFFORTS = ["low", "medium", "high", "xhigh"] as const;
-
-/** Hardcoded catalog. Edit here to change exposed models / efforts. */
-export const HARDCODED_GROK_MODELS: Record<string, GrokModelInfo> = {
-  "grok-4.6": {
-    name: "Grok 4.6",
-    defaultEffort: "high",
-    efforts: [...EFFORTS],
-  },
-};
-
 export interface GrokModelInfo {
   name: string;
   defaultEffort: string;
   efforts: string[];
+  contextWindow?: number;
+  maxTokens?: number;
 }
 
 export interface GrokModelMeta {
@@ -37,8 +33,19 @@ export function buildThinkingLevelMap(efforts: string[]): ThinkingLevelMap {
   return map;
 }
 
+function mapConfigEntry(id: string, entry: ConfigModelEntry): GrokModelInfo {
+  const efforts = entry.efforts ?? [];
+  return {
+    name: entry.name ?? id,
+    defaultEffort: entry.defaultEffort ?? efforts[0] ?? "high",
+    efforts,
+    ...(entry.contextWindow ? { contextWindow: entry.contextWindow } : {}),
+    ...(entry.maxTokens ? { maxTokens: entry.maxTokens } : {}),
+  };
+}
+
 export function toPiModels(
-  catalog: Record<string, GrokModelInfo> = HARDCODED_GROK_MODELS,
+  catalog: Record<string, GrokModelInfo> = {},
 ): { models: Model<"grok-acp">[]; meta: Map<string, GrokModelMeta> } {
   const models: Model<"grok-acp">[] = [];
   const meta = new Map<string, GrokModelMeta>();
@@ -62,8 +69,8 @@ export function toPiModels(
         : {}),
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 500_000,
-      maxTokens: 16_384,
+      contextWindow: info.contextWindow ?? 500_000,
+      maxTokens: info.maxTokens ?? 16_384,
     });
   }
 
@@ -71,14 +78,21 @@ export function toPiModels(
   return { models, meta };
 }
 
-export async function discoverModels(): Promise<{
+export async function loadGrokCatalog(configPath?: string): Promise<Record<string, GrokModelInfo>> {
+  const { config } = await loadModelsConfigFile(configPath);
+  return resolveAgentCatalog("grok", config, mapConfigEntry);
+}
+
+export async function discoverModels(opts?: {
+  configPath?: string;
+}): Promise<{
   models: Model<"grok-acp">[];
   meta: Map<string, GrokModelMeta>;
 }> {
-  return toPiModels(HARDCODED_GROK_MODELS);
+  const catalog = await loadGrokCatalog(opts?.configPath);
+  return toPiModels(catalog);
 }
 
-/** Resolve ACP model id + reasoning effort (sent via session/set_mode). */
 export function resolveGrokConfig(
   modelId: string,
   reasoning: string | undefined,

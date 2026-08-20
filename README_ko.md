@@ -36,6 +36,38 @@ Pi 재시작 후 `/model`에서 선택:
 
 ---
 
+## 모델 설정 파일
+
+모델 목록은 소스 하드코딩 대신 JSON 설정 파일을 쓴다.
+
+- 기본 경로: `<extension-root>/models.json`
+- 경로 오버라이드: env `PI_AGENT_BRIDGE_CONFIG`
+- 예제: [`models.json`](./models.json)
+
+패키지 파일을 수정한 뒤 Pi 재시작 또는 `/reload`:
+
+```bash
+$EDITOR /path/to/pi-agent-bridge/models.json
+```
+
+규칙:
+
+- 기본 파일은 `package.json` 옆 패키지 `models.json`
+- 파일 없음 / agent 섹션 없음 → 해당 agent 모델 **0개**
+- agent 섹션 있음 → 그 목록만 등록
+
+모델 필드:
+
+| Field | Agents | Meaning |
+|---|---|---|
+| `name` | 전체 | 표시 이름 |
+| `variants` / `defaultVariant` | agy | 모델 id suffix → Pi thinking |
+| `efforts` / `defaultEffort` | codex, grok, cursor | reasoning effort (cursor → `model[effort=…]`) |
+| `acpModelValue` | cursor (선택) | Pi model id와 Cursor base 값이 다를 때만 오버라이드 |
+| `contextWindow` / `maxTokens` | 전체 (선택) | Pi 모델 한도 |
+
+---
+
 ## agy
 
 ### Config (env)
@@ -51,7 +83,9 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-`src/agy/agy-models.ts` → `HARDCODED_AGY_MODELS`
+`models.json` → `agy.models` (`models.json` 참고)
+
+예:
 
 - `agy/gemini-3.7-flash`
 - thinking: `high` | `medium` | `low` (기본 `high`)
@@ -82,7 +116,9 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-`src/codex/models.ts` → `HARDCODED_CODEX_MODELS`
+`models.json` → `codex.models` (`models.json` 참고)
+
+예:
 
 - `codex/gpt-5.6-sol`
 - `codex/gpt-5.6-terra`
@@ -113,7 +149,9 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-`src/grok/models.ts` → `HARDCODED_GROK_MODELS`
+`models.json` → `grok.models` (`models.json` 참고)
+
+예:
 
 - `grok/grok-4.6`
 - thinking / effort: `low` | `medium` | `high` | `xhigh` (기본 `high`)
@@ -151,9 +189,13 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-`src/cursor/models.ts` → `HARDCODED_CURSOR_MODELS`
+`models.json` → `cursor.models` (`models.json` 참고)
 
-- `cursor/auto` → ACP model value `default[]`
+예:
+
+- `cursor/default[]` — Auto, `efforts` 없으면 wire `default[]` 유지
+- `cursor/composer-2.5` + `efforts` → wire `composer-2.5[effort=high]`
+- Pi thinking → `effort=`; 미지원 레벨은 `defaultEffort`
 
 ### Behavior / security
 

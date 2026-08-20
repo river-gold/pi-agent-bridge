@@ -126,7 +126,13 @@ describe("e2e/grok-stream", () => {
         stateFile: join(stateDir, "sessions.json"),
         bindingLockFile: join(stateDir, "binding.lock"),
       });
-      const { models, meta } = toPiModels();
+      const { models, meta } = toPiModels({
+        "grok-4.6": {
+          name: "Grok 4.6",
+          defaultEffort: "high",
+          efforts: ["low", "medium", "high", "xhigh"],
+        },
+      });
       const client = new GrokAcpClient(config);
       const runtime: GrokStreamRuntime = {
         config,

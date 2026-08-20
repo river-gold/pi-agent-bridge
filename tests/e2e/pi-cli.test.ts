@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,7 +45,7 @@ async function whichPi(): Promise<string | null> {
 }
 
 describe("e2e/pi-cli", () => {
-  it("pi --list-models shows hardcoded agy/gemini-3.7-flash", async (t) => {
+  it("pi --list-models shows models from models.json", async (t) => {
     const piPath = await whichPi();
     if (!piPath) {
       t.skip("pi CLI not installed");
@@ -55,7 +55,23 @@ describe("e2e/pi-cli", () => {
     const root = await mkdtemp(join(tmpdir(), "pi-agy-cli-e2e-"));
     const home = join(root, "home");
     const agentDir = join(home, ".pi", "agent");
-    await mkdir(agentDir, { recursive: true });
+    const modelsDir = join(agentDir, "pi-agent-bridge");
+    await mkdir(modelsDir, { recursive: true });
+    await writeFile(
+      join(modelsDir, "models.json"),
+      JSON.stringify({
+        agy: {
+          models: {
+            "gemini-3.7-flash": {
+              name: "Gemini 3.7 Flash",
+              defaultVariant: "high",
+              variants: ["high", "medium", "low"],
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
 
     try {
       const result = await run(

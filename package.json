@@ -20,7 +20,9 @@
   "files": [
     "extensions",
     "src",
-    "README.md"
+    "models.json",
+    "README.md",
+    "README_ko.md"
   ],
   "pi": {
     "extensions": [

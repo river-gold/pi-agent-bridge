@@ -110,7 +110,7 @@ function textOf(message: AssistantMessage): string {
 }
 
 describe("e2e/cursor-stream", () => {
-  it("streams text with auto→default[] and reuses session", async () => {
+  it("streams text with default[] model id and reuses session", async () => {
     const root = await mkdtemp(join(tmpdir(), "pi-cursor-e2e-"));
     const cwd = join(root, "cwd");
     const stateDir = join(root, "state");
@@ -126,7 +126,12 @@ describe("e2e/cursor-stream", () => {
         stateFile: join(stateDir, "sessions.json"),
         bindingLockFile: join(stateDir, "binding.lock"),
       });
-      const { models, meta } = toPiModels();
+      const { models, meta } = toPiModels({
+        "default[]": {
+          name: "Auto",
+          acpModelValue: "default[]",
+        },
+      });
       const client = new CursorAcpClient(config);
       const runtime: CursorStreamRuntime = {
         config,
@@ -135,7 +140,7 @@ describe("e2e/cursor-stream", () => {
         store: new SessionStore(config.stateFile, config.bindingLockFile),
         client,
       };
-      const model = models.find((m) => m.id === "auto") as Model<"cursor-acp">;
+      const model = models.find((m) => m.id === "default[]") as Model<"cursor-acp">;
 
       const t1 = await collectStream(
         streamCursor(runtime, model, userContext("first"), {
@@ -157,6 +162,28 @@ describe("e2e/cursor-stream", () => {
       );
       assert.equal(t2.message.stopReason, "stop");
       assert.equal(textOf(t2.message), "R:second:default[]");
+
+      const { models: effortModels, meta: effortMeta } = toPiModels({
+        "composer-2.5": {
+          name: "Composer 2.5",
+          acpModelValue: "composer-2.5",
+          defaultEffort: "high",
+          efforts: ["low", "medium", "high"],
+        },
+      });
+      const effortRuntime: CursorStreamRuntime = {
+        ...runtime,
+        getMeta: (id) => effortMeta.get(id),
+      };
+      const effortModel = effortModels.find((m) => m.id === "composer-2.5") as Model<"cursor-acp">;
+      const t3 = await collectStream(
+        streamCursor(effortRuntime, effortModel, userContext("effort"), {
+          sessionId: "pi-effort",
+          reasoning: "low",
+          timeoutMs: 10_000,
+        }),
+      );
+      assert.equal(textOf(t3.message), "R:effort:composer-2.5[effort=low]");
       assert.equal(
         (await runtime.store.getEntry("pi-sess"))?.conversationId,
         entry!.conversationId,

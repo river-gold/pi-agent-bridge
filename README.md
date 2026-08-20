@@ -36,6 +36,38 @@ Restart Pi, then pick a model under `/model`:
 
 ---
 
+## Model config file
+
+Models are no longer edit-only-in-source. Prefer a JSON config:
+
+- default path: `<extension-root>/models.json`
+- override path: env `PI_AGENT_BRIDGE_CONFIG`
+- example: [`models.json`](./models.json)
+
+Edit the package file, then restart Pi or `/reload`:
+
+```bash
+$EDITOR /path/to/pi-agent-bridge/models.json
+```
+
+Rules:
+
+- default file is the package `models.json` next to `package.json`
+- missing file / missing agent section → that agent exposes **0 models**
+- agent section present → only those models are registered
+
+Per-model fields:
+
+| Field | Agents | Meaning |
+|---|---|---|
+| `name` | all | display name |
+| `variants` / `defaultVariant` | agy | model id suffixes mapped to Pi thinking |
+| `efforts` / `defaultEffort` | codex, grok, cursor | reasoning effort (cursor → `model[effort=…]`) |
+| `acpModelValue` | cursor (optional) | override ACP model base when it differs from the Pi model id |
+| `contextWindow` / `maxTokens` | all (optional) | Pi model limits |
+
+---
+
 ## agy
 
 ### Config (env)
@@ -51,7 +83,9 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-`src/agy/agy-models.ts` → `HARDCODED_AGY_MODELS`
+Configured via `models.json` → `agy.models` (see `models.json`).
+
+Example:
 
 - `agy/gemini-3.7-flash`
 - thinking: `high` | `medium` | `low` (default `high`)
@@ -82,7 +116,9 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-`src/codex/models.ts` → `HARDCODED_CODEX_MODELS`
+Configured via `models.json` → `codex.models` (see `models.json`).
+
+Example:
 
 - `codex/gpt-5.6-sol`
 - `codex/gpt-5.6-terra`
@@ -113,7 +149,9 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-`src/grok/models.ts` → `HARDCODED_GROK_MODELS`
+Configured via `models.json` → `grok.models` (see `models.json`).
+
+Example:
 
 - `grok/grok-4.6`
 - thinking / effort: `low` | `medium` | `high` | `xhigh` (default `high`)
@@ -151,9 +189,13 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-`src/cursor/models.ts` → `HARDCODED_CURSOR_MODELS`
+Configured via `models.json` → `cursor.models` (see `models.json`).
 
-- `cursor/auto` → ACP model value `default[]`
+Example:
+
+- `cursor/default[]` — Auto; no `efforts` → wire value stays `default[]`
+- `cursor/composer-2.5` with `efforts` → wire `composer-2.5[effort=high]`
+- Pi thinking maps to `effort=`; unsupported levels fall back to `defaultEffort`
 
 ### Behavior / security
 

@@ -95,7 +95,11 @@ export function streamCursor(
         throw new Error("cursor turn has no user text");
       }
 
-      const acpModel = resolveCursorModel(model.id, runtime.getMeta(model.id));
+      const acpModel = resolveCursorModel(
+        model.id,
+        options?.reasoning,
+        runtime.getMeta(model.id),
+      );
 
       let textStarted = false;
       const contentIndex = 0;

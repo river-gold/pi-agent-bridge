@@ -1,32 +1,20 @@
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
+import {
+  loadModelsConfigFile,
+  resolveAgentCatalog,
+  type ConfigModelEntry,
+} from "../shared/models-config.ts";
 
 const API = "codex-acp";
 const PROVIDER = "codex";
 const BASE_URL = "local://codex-acp";
 
-/** Hardcoded catalog. Edit here to change exposed models / efforts. */
-export const HARDCODED_CODEX_MODELS: Record<string, CodexModelInfo> = {
-  "gpt-5.6-sol": {
-    name: "GPT-5.6 Sol",
-    defaultEffort: "high",
-    efforts: ["low", "medium", "high", "xhigh", "max"],
-  },
-  "gpt-5.6-terra": {
-    name: "GPT-5.6 Terra",
-    defaultEffort: "high",
-    efforts: ["low", "medium", "high", "xhigh", "max"],
-  },
-  "gpt-5.6-luna": {
-    name: "GPT-5.6 Luna",
-    defaultEffort: "high",
-    efforts: ["low", "medium", "high", "xhigh", "max"],
-  },
-};
-
 export interface CodexModelInfo {
   name: string;
   defaultEffort: string;
   efforts: string[];
+  contextWindow?: number;
+  maxTokens?: number;
 }
 
 export interface CodexModelMeta {
@@ -45,8 +33,19 @@ export function buildThinkingLevelMap(efforts: string[]): ThinkingLevelMap {
   return map;
 }
 
+function mapConfigEntry(id: string, entry: ConfigModelEntry): CodexModelInfo {
+  const efforts = entry.efforts ?? [];
+  return {
+    name: entry.name ?? id,
+    defaultEffort: entry.defaultEffort ?? efforts[0] ?? "high",
+    efforts,
+    ...(entry.contextWindow ? { contextWindow: entry.contextWindow } : {}),
+    ...(entry.maxTokens ? { maxTokens: entry.maxTokens } : {}),
+  };
+}
+
 export function toPiModels(
-  catalog: Record<string, CodexModelInfo> = HARDCODED_CODEX_MODELS,
+  catalog: Record<string, CodexModelInfo> = {},
 ): { models: Model<"codex-acp">[]; meta: Map<string, CodexModelMeta> } {
   const models: Model<"codex-acp">[] = [];
   const meta = new Map<string, CodexModelMeta>();
@@ -70,8 +69,8 @@ export function toPiModels(
         : {}),
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 200_000,
-      maxTokens: 16_384,
+      contextWindow: info.contextWindow ?? 200_000,
+      maxTokens: info.maxTokens ?? 16_384,
     });
   }
 
@@ -79,17 +78,21 @@ export function toPiModels(
   return { models, meta };
 }
 
-export async function discoverModels(): Promise<{
+export async function loadCodexCatalog(configPath?: string): Promise<Record<string, CodexModelInfo>> {
+  const { config } = await loadModelsConfigFile(configPath);
+  return resolveAgentCatalog("codex", config, mapConfigEntry);
+}
+
+export async function discoverModels(opts?: {
+  configPath?: string;
+}): Promise<{
   models: Model<"codex-acp">[];
   meta: Map<string, CodexModelMeta>;
 }> {
-  return toPiModels(HARDCODED_CODEX_MODELS);
+  const catalog = await loadCodexCatalog(opts?.configPath);
+  return toPiModels(catalog);
 }
 
-/**
- * Resolve ACP model id + optional reasoning_effort.
- * Effort is omitted only when the catalog has no efforts (not used currently).
- */
 export function resolveCodexConfig(
   modelId: string,
   reasoning: string | undefined,

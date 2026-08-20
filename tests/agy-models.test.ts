@@ -3,20 +3,17 @@ import { describe, it } from "node:test";
 import {
   buildThinkingLevelMap,
   discoverModels,
-  HARDCODED_AGY_MODELS,
   resolveAgyModelId,
   toPiModels,
 } from "../src/agy/agy-models.ts";
 
-describe("hardcoded catalog", () => {
-  it("exposes gemini-3.7-flash with high/medium/low", () => {
-    assert.deepEqual(HARDCODED_AGY_MODELS["gemini-3.7-flash"], {
-      name: "Gemini 3.7 Flash",
-      defaultVariant: "high",
-      variants: ["high", "medium", "low"],
-    });
-  });
-});
+const SAMPLE = {
+  "gemini-3.7-flash": {
+    name: "Gemini 3.7 Flash",
+    defaultVariant: "high",
+    variants: ["high", "medium", "low"],
+  },
+};
 
 describe("resolveAgyModelId", () => {
   it("appends thinking-level variant", () => {
@@ -45,7 +42,7 @@ describe("resolveAgyModelId", () => {
 
 describe("toPiModels", () => {
   it("marks variant models as reasoning with low/medium/high only", () => {
-    const { models, meta } = toPiModels();
+    const { models, meta } = toPiModels(SAMPLE);
     assert.equal(models.length, 1);
     const flash = models[0]!;
     assert.equal(flash.id, "gemini-3.7-flash");
@@ -57,13 +54,18 @@ describe("toPiModels", () => {
     assert.equal(flash.thinkingLevelMap?.max, null);
     assert.equal(meta.get("gemini-3.7-flash")?.defaultVariant, "high");
   });
+
+  it("returns empty catalog by default", () => {
+    assert.equal(toPiModels().models.length, 0);
+  });
 });
 
 describe("discoverModels", () => {
-  it("returns hardcoded catalog without calling agy", async () => {
-    const result = await discoverModels();
-    assert.equal(result.models.length, 1);
-    assert.equal(result.models[0]?.id, "gemini-3.7-flash");
+  it("returns empty when config missing", async () => {
+    const result = await discoverModels({
+      configPath: "/tmp/pi-agent-bridge-no-models.json",
+    });
+    assert.equal(result.models.length, 0);
   });
 });
 

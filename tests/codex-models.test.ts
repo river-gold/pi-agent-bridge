@@ -3,30 +3,27 @@ import { describe, it } from "node:test";
 import {
   buildThinkingLevelMap,
   discoverModels,
-  HARDCODED_CODEX_MODELS,
   resolveCodexConfig,
   toPiModels,
 } from "../src/codex/models.ts";
 
-describe("codex hardcoded catalog", () => {
-  it("exposes sol/terra/luna with low..max efforts", () => {
-    assert.deepEqual(Object.keys(HARDCODED_CODEX_MODELS).sort(), [
-      "gpt-5.6-luna",
-      "gpt-5.6-sol",
-      "gpt-5.6-terra",
-    ]);
-    for (const id of Object.keys(HARDCODED_CODEX_MODELS)) {
-      assert.deepEqual(HARDCODED_CODEX_MODELS[id]!.efforts, [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-      ]);
-      assert.equal(HARDCODED_CODEX_MODELS[id]!.defaultEffort, "high");
-    }
-  });
-});
+const SAMPLE = {
+  "gpt-5.6-sol": {
+    name: "GPT-5.6 Sol",
+    defaultEffort: "high",
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+  "gpt-5.6-terra": {
+    name: "GPT-5.6 Terra",
+    defaultEffort: "high",
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+  "gpt-5.6-luna": {
+    name: "GPT-5.6 Luna",
+    defaultEffort: "high",
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+};
 
 describe("resolveCodexConfig", () => {
   const meta = {
@@ -62,8 +59,8 @@ describe("resolveCodexConfig", () => {
 });
 
 describe("toPiModels / discoverModels", () => {
-  it("registers three reasoning models", async () => {
-    const { models, meta } = await discoverModels();
+  it("registers sample reasoning models", () => {
+    const { models, meta } = toPiModels(SAMPLE);
     assert.equal(models.length, 3);
     const sol = models.find((m) => m.id === "gpt-5.6-sol");
     assert.ok(sol);
@@ -76,7 +73,14 @@ describe("toPiModels / discoverModels", () => {
     assert.equal(sol!.thinkingLevelMap?.off, null);
     assert.equal(sol!.thinkingLevelMap?.minimal, null);
     assert.equal(meta.get("gpt-5.6-sol")?.defaultEffort, "high");
-    assert.equal(toPiModels().models.length, 3);
+  });
+
+  it("returns empty when config missing", async () => {
+    const { models } = await discoverModels({
+      configPath: "/tmp/pi-agent-bridge-no-models.json",
+    });
+    assert.equal(models.length, 0);
+    assert.equal(toPiModels().models.length, 0);
   });
 });
 
