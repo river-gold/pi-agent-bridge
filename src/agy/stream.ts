@@ -238,7 +238,7 @@ export function streamAgy(
                 }),
               );
               const valid = entries.filter((e): e is { path: string; mtime: number } => !!e).sort((a, b) => b.mtime - a.mtime);
-              const maxFiles = Number(process.env.AGY_OUTPUT_MAX_FILES ?? 100);
+              const maxFiles = Number(process.env.AGY_OUTPUT_MAX_FILES ?? 1000);
               const maxAgeMs = Number(process.env.AGY_OUTPUT_MAX_AGE_MS ?? 365 * 24 * 60 * 60 * 1000);
               const now = Date.now();
               for (let i = 0; i < valid.length; i++) {
