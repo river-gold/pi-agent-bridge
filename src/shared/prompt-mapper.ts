@@ -9,10 +9,21 @@ export function mapPrompt(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg?.role === "user") {
-      return extractText(msg).trim();
+      return extractTask(extractText(msg));
     }
   }
   return "";
+}
+
+function extractTask(raw: string): string {
+  let t = raw.trim();
+  if (t.startsWith("Task: ")) t = t.slice(6).trimStart();
+  const cutMarkers = ["\n---\n", "\n**Output:**", "**Output:**", "## Acceptance Contract", "```acceptance-report"];
+  for (const m of cutMarkers) {
+    const idx = t.indexOf(m);
+    if (idx !== -1) t = t.slice(0, idx).trimEnd();
+  }
+  return t.trim();
 }
 
 function extractText(msg: Message): string {
