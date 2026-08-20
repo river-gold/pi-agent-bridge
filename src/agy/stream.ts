@@ -182,7 +182,7 @@ export function streamAgy(
               stream.push({ type: "toolcall_end", contentIndex: idx, toolCall: existing, partial: output });
             }
             if (event.output) {
-              const out = event.output.length > 4000 ? event.output.slice(0, 4000) + "\n...[truncated]" : event.output;
+              const out = event.output;
               const alias: Record<string, string> = {
                 grep_search: "rg",
                 list_dir: "ls",
