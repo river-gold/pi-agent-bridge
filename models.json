@@ -38,8 +38,9 @@
   },
   "cursor": {
     "models": {
-      "default[]": {
-        "name": "Auto"
+      "auto": {
+        "name": "Auto",
+        "acpModelValue": "default[]"
       }
     }
   }
