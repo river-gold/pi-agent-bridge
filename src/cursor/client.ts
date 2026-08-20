@@ -1,31 +1,35 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
-import type { CodexConfig } from "./config.ts";
+import type { CursorConfig } from "./config.ts";
 import { disposeChild } from "../shared/process.ts";
 
-export interface CodexTurnInput {
-  /** Bound ACP session id, if already known. */
+export interface CursorTurnInput {
   sessionId?: string;
   cwd: string;
+  /** Full ACP model config value, e.g. default[] */
   model: string;
-  /** Always sent as reasoning_effort (none removed). */
-  effort: string;
-  prompt: string;
   mode?: string;
+  prompt: string;
   timeoutMs?: number;
   abortSignal?: AbortSignal;
   onText?: (text: string) => void;
 }
 
-export interface CodexTurnResult {
+export interface CursorTurnResult {
   sessionId: string;
   text: string;
   stopReason: string;
 }
 
-type SessionUpdate = { sessionUpdate: string; content?: { type?: string; text?: string }; [key: string]: unknown };
+type SessionUpdate = {
+  sessionUpdate: string;
+  content?: { type?: string; text?: string };
+  [key: string]: unknown;
+};
 type SessionListener = (update: SessionUpdate) => void;
+
+const passthroughParams = <T>(params: T): T => params;
 
 function createAbortError(reason?: unknown): Error {
   if (reason instanceof Error) {
@@ -47,35 +51,42 @@ function createAbortError(reason?: unknown): Error {
 }
 
 function pickPermissionOption(
-  options: Array<{ optionId: string; kind: string }>,
+  options: Array<{ optionId: string; kind?: string; name?: string }>,
 ): string {
-  const prefer = ["allow_always", "allow_once", "proceed_always", "proceed_once"];
-  for (const kind of prefer) {
-    const hit = options.find((o) => o.kind === kind);
-    if (hit) return hit.optionId;
-  }
-  return options[0]?.optionId ?? "allow";
+  const score = (o: { optionId: string; kind?: string; name?: string }) => {
+    const blob = `${o.optionId} ${o.kind ?? ""} ${o.name ?? ""}`.toLowerCase();
+    if (blob.includes("allow-always") || blob.includes("allow_always")) return 0;
+    if (blob.includes("allow-once") || blob.includes("allow_once")) return 1;
+    if (blob.includes("allow") || blob.includes("proceed")) return 2;
+    return 9;
+  };
+  const sorted = [...options].sort((a, b) => score(a) - score(b));
+  return sorted[0]?.optionId ?? "allow-always";
 }
 
 /**
- * Long-lived client over `npx @agentclientprotocol/codex-acp`.
- * One process, many ACP sessions (keyed externally by Pi session id).
+ * Long-lived client over `cursor-agent acp`.
+ *
+ * - auth: authenticate { methodId: "cursor_login" }
+ * - model: session/set_config_option { configId: "model", value }
+ * - mode: session/set_mode { modeId: agent|plan|ask }
+ * - cursor/* extension methods auto-handled
  */
-export class CodexAcpClient {
-  private readonly config: CodexConfig;
+export class CursorAcpClient {
+  private readonly config: CursorConfig;
   private child: ChildProcess | null = null;
   private connection: acp.ClientConnection | null = null;
   private ctx: acp.ClientContext | null = null;
   private startPromise: Promise<void> | null = null;
   private readonly listeners = new Map<string, SessionListener>();
-  /** Last applied model/effort per ACP session. */
-  private readonly applied = new Map<string, { model: string; effort: string; mode: string }>();
+  private readonly applied = new Map<string, { model: string; mode: string }>();
+  private readonly texts = new Map<string, string>();
 
-  constructor(config: CodexConfig) {
+  constructor(config: CursorConfig) {
     this.config = config;
   }
 
-  async runTurn(input: CodexTurnInput): Promise<CodexTurnResult> {
+  async runTurn(input: CursorTurnInput): Promise<CursorTurnResult> {
     if (input.abortSignal?.aborted) {
       throw createAbortError(input.abortSignal.reason);
     }
@@ -92,9 +103,9 @@ export class CodexAcpClient {
       });
       sessionId = created.sessionId;
     } else if (!this.applied.has(sessionId)) {
-      // Process may have restarted; try resume before falling back to new.
+      // Cursor advertises loadSession; resume may be unavailable.
       try {
-        await ctx.request(acp.methods.agent.session.resume, {
+        await ctx.request(acp.methods.agent.session.load, {
           sessionId,
           cwd: input.cwd,
           mcpServers: [],
@@ -108,19 +119,15 @@ export class CodexAcpClient {
       }
     }
 
-    await this.applySessionConfig(sessionId, input.model, input.effort, mode);
+    await this.applySessionConfig(sessionId, input.model, mode);
 
-    let accumulated = "";
+    this.texts.set(sessionId, "");
     this.listeners.set(sessionId, (update) => {
       if (
         update.sessionUpdate === "agent_message_chunk" &&
-        update.content &&
-        typeof update.content === "object" &&
-        "type" in update.content &&
-        update.content.type === "text" &&
+        update.content?.type === "text" &&
         typeof update.content.text === "string"
       ) {
-        accumulated += update.content.text;
         input.onText?.(update.content.text);
       }
     });
@@ -166,15 +173,20 @@ export class CodexAcpClient {
       );
 
       if (timeoutController.signal.aborted && !input.abortSignal?.aborted) {
-        throw new Error("codex-acp timed out");
+        throw new Error("cursor-acp timed out");
       }
       if (input.abortSignal?.aborted) {
         throw createAbortError(input.abortSignal.reason);
       }
 
+      // session/update can land after the prompt result in the same flush.
+      if (!(this.texts.get(sessionId) ?? "")) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+
       return {
         sessionId,
-        text: accumulated,
+        text: this.texts.get(sessionId) ?? "",
         stopReason: response.stopReason,
       };
     } finally {
@@ -203,11 +215,11 @@ export class CodexAcpClient {
   private async applySessionConfig(
     sessionId: string,
     model: string,
-    effort: string,
     mode: string,
   ): Promise<void> {
     const ctx = this.ctx!;
     const prev = this.applied.get(sessionId);
+
     if (!prev || prev.mode !== mode) {
       await ctx.request(acp.methods.agent.session.setMode, {
         sessionId,
@@ -221,14 +233,7 @@ export class CodexAcpClient {
         value: model,
       });
     }
-    if (!prev || prev.effort !== effort) {
-      await ctx.request(acp.methods.agent.session.setConfigOption, {
-        sessionId,
-        configId: "reasoning_effort",
-        value: effort,
-      });
-    }
-    this.applied.set(sessionId, { model, effort, mode });
+    this.applied.set(sessionId, { model, mode });
   }
 
   private ensureStarted(): Promise<void> {
@@ -263,7 +268,7 @@ export class CodexAcpClient {
     });
 
     if (!child.stdin || !child.stdout) {
-      throw new Error("failed to spawn codex-acp: missing stdio pipes");
+      throw new Error("failed to spawn cursor-acp: missing stdio pipes");
     }
 
     const stream = acp.ndJsonStream(
@@ -272,7 +277,7 @@ export class CodexAcpClient {
     );
 
     const connection = acp
-      .client({ name: "pi-agent-bridge-codex" })
+      .client({ name: "pi-agent-bridge-cursor" })
       .onRequest(acp.methods.client.session.requestPermission, async (req) => {
         const optionId = pickPermissionOption(req.params.options);
         return {
@@ -282,10 +287,24 @@ export class CodexAcpClient {
           },
         };
       })
+      // Cursor extension methods (must register parsers for custom methods).
+      .onRequest("cursor/ask_question", passthroughParams, async () => ({}))
+      .onRequest("cursor/create_plan", passthroughParams, async () => ({ approved: true }))
       .onNotification(acp.methods.client.session.update, async (req) => {
-        const listener = this.listeners.get(req.params.sessionId);
-        listener?.(req.params.update as SessionUpdate);
+        const update = req.params.update as SessionUpdate;
+        if (
+          update.sessionUpdate === "agent_message_chunk" &&
+          update.content?.type === "text" &&
+          typeof update.content.text === "string"
+        ) {
+          const sid = req.params.sessionId;
+          this.texts.set(sid, (this.texts.get(sid) ?? "") + update.content.text);
+        }
+        this.listeners.get(req.params.sessionId)?.(update);
       })
+      .onNotification("cursor/update_todos", passthroughParams, async () => {})
+      .onNotification("cursor/task", passthroughParams, async () => {})
+      .onNotification("cursor/generate_image", passthroughParams, async () => {})
       .connect(stream);
 
     this.connection = connection;
@@ -297,20 +316,30 @@ export class CodexAcpClient {
         clientCapabilities: {
           fs: { readTextFile: false, writeTextFile: false },
         },
-        clientInfo: { name: "pi-agent-bridge-codex", version: "0.1.0" },
+        clientInfo: { name: "pi-agent-bridge-cursor", version: "0.1.0" },
       });
+      try {
+        await this.ctx.request(acp.methods.agent.authenticate, {
+          methodId: "cursor_login",
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `cursor-acp auth failed (run \`cursor-agent login\` first): ${msg}`,
+        );
+      }
     } catch (error) {
       const detail = stderr.trim();
       await this.dispose();
       const msg = error instanceof Error ? error.message : String(error);
       throw new Error(
-        detail ? `codex-acp initialize failed: ${msg}\n${detail}` : `codex-acp initialize failed: ${msg}`,
+        detail ? `cursor-acp initialize failed: ${msg}\n${detail}` : `cursor-acp initialize failed: ${msg}`,
       );
     }
 
     if (child.exitCode !== null) {
       throw new Error(
-        `codex-acp exited during startup (code ${child.exitCode})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        `cursor-acp exited during startup (code ${child.exitCode})${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
       );
     }
   }

@@ -1,7 +1,7 @@
 {
   "name": "pi-agent-bridge",
   "version": "0.1.0",
-  "description": "Pi extension that routes prompts to agy, Codex ACP, and Grok ACP agents",
+  "description": "Pi extension that routes prompts to agy, Codex/Grok/Cursor ACP agents",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -13,6 +13,7 @@
     "antigravity",
     "codex",
     "grok",
+    "cursor",
     "acp",
     "provider"
   ],
@@ -25,13 +26,14 @@
     "extensions": [
       "./extensions/agy.ts",
       "./extensions/codex.ts",
-      "./extensions/grok.ts"
+      "./extensions/grok.ts",
+      "./extensions/cursor.ts"
     ]
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test 'tests/**/*.test.ts'",
-    "test:unit": "node --experimental-strip-types --test 'tests/*.test.ts'",
-    "test:e2e": "node --experimental-strip-types --test 'tests/e2e/**/*.test.ts'",
+    "test": "node --experimental-strip-types --test --test-force-exit 'tests/**/*.test.ts'",
+    "test:unit": "node --experimental-strip-types --test --test-force-exit 'tests/*.test.ts'",
+    "test:e2e": "node --experimental-strip-types --test --test-force-exit 'tests/e2e/**/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

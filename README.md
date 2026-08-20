@@ -5,6 +5,7 @@ Pi extension that routes prompts to external coding agents:
 - `agy` — Google Antigravity CLI
 - `codex` — Codex via Agent Client Protocol (`@agentclientprotocol/codex-acp`)
 - `grok` — Grok via `grok agent stdio` (ACP)
+- `cursor` — Cursor via `cursor-agent acp`
 
 ## Prerequisites
 
@@ -12,6 +13,7 @@ Pi extension that routes prompts to external coding agents:
 - For agy: `agy` CLI installed and authenticated
 - For codex: network for `npx @agentclientprotocol/codex-acp@1.6.0`, plus Codex auth (`codex` login / API key)
 - For grok: `grok` CLI installed and authenticated (`grok` login)
+- For cursor: `cursor-agent` CLI installed and authenticated (`cursor-agent login`)
 
 ## Install
 
@@ -23,7 +25,7 @@ pi install /absolute/path/to/pi-agent-bridge
 pi -e /absolute/path/to/pi-agent-bridge
 ```
 
-Install 후 Pi 재시작 → `/model` 에서 `agy/...` / `codex/...` / `grok/...` 선택.
+Install 후 Pi 재시작 → `/model` 에서 `agy/...` / `codex/...` / `grok/...` / `cursor/...` 선택.
 
 ---
 
@@ -125,6 +127,36 @@ Grok ACP 매핑:
 
 ---
 
+## cursor (ACP)
+
+### Config (env)
+
+| Env | Default | Meaning |
+|---|---|---|
+| `CURSOR_ACP_COMMAND` | `cursor-agent` | launcher |
+| `CURSOR_ACP_ARGS` | `acp` | agent args |
+| `CURSOR_ACP_TIMEOUT_MS` | `300000` | per-turn timeout |
+| `CURSOR_ACP_MODE` | `agent` | session mode (`agent`\|`plan`\|`ask`) |
+
+State: `~/.pi/agent/cursor/sessions.json`
+
+Auth: `cursor-agent login` (ACP `cursor_login`)
+
+### Models
+
+`src/cursor/models.ts` → `HARDCODED_CURSOR_MODELS`
+
+- `cursor/auto` → ACP model value `default[]`
+
+### Behavior / security
+
+- 최신 user 입력만 `session/prompt`로 전달
+- permission 자동 승인 (`allow-always` 우선)
+- `cursor/ask_question`, `cursor/create_plan` 등 extension method 자동 응답
+- Pi system prompt / tools 미전달
+
+---
+
 ## Develop
 
 ```bash
@@ -138,8 +170,10 @@ npm test
 extensions/agy.ts
 extensions/codex.ts
 extensions/grok.ts
+extensions/cursor.ts
 src/agy/
 src/codex/
 src/grok/
+src/cursor/
 src/shared/
 ```

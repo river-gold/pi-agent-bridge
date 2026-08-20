@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import type { GrokConfig } from "./config.ts";
+import { disposeChild } from "../shared/process.ts";
 
 export interface GrokTurnInput {
   sessionId?: string;
@@ -146,6 +147,7 @@ export class GrokAcpClient {
       timeoutController.abort();
       abortTurn();
     }, timeoutMs);
+    timeoutTimer.unref?.();
 
     try {
       if (timeoutController.signal.aborted || input.abortSignal?.aborted) {
@@ -197,14 +199,9 @@ export class GrokAcpClient {
     this.connection = null;
     this.ctx = null;
     this.startPromise = null;
-    if (this.child && this.child.exitCode === null && this.child.signalCode === null) {
-      try {
-        this.child.kill("SIGTERM");
-      } catch {
-        // ignore
-      }
-    }
+    const child = this.child;
     this.child = null;
+    await disposeChild(child);
   }
 
   private async applySessionConfig(
