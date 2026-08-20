@@ -28,7 +28,7 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverModels, type AgyModelMeta } from "../src/agy/agy-models.ts";
+import { discoverModels } from "../src/agy/agy-models.ts";
 import { loadConfig } from "../src/agy/config.ts";
 import { SessionStore } from "../src/agy/session-store.ts";
 import { streamAgy, type StreamRuntime } from "../src/agy/stream.ts";
@@ -37,8 +37,7 @@ export default async function (pi: ExtensionAPI) {
   const config = loadConfig();
   let cwd = process.cwd();
 
-  const { models, meta: initialMeta } = await discoverModels();
-  let meta: Map<string, AgyModelMeta> = initialMeta;
+  const { models, meta } = await discoverModels();
 
   const runtime: StreamRuntime = {
     config,
@@ -81,16 +80,5 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     cwd = ctx.cwd;
-  });
-
-  pi.registerCommand("agy-refresh-models", {
-    description: "Reload hardcoded Antigravity model list",
-    handler: async (_args, ctx) => {
-      const next = await discoverModels();
-      meta = next.meta;
-      pi.unregisterProvider("agy");
-      register(next.models);
-      ctx.ui.notify(`Loaded ${next.models.length} agy model(s)`, "info");
-    },
   });
 }
