@@ -2,7 +2,8 @@
  * Grok ACP provider for pi.
  *
  * Spawns `grok agent --always-approve stdio` and routes prompts through ACP.
- * Models: <extension-root>/models.jsonc (or PI_AGENT_BRIDGE_CONFIG).
+ * Models: .pi/agent/pi-agent-bridge.jsonc under Pi's startup cwd, then
+ * ~/.pi/agent/pi-agent-bridge.jsonc (or PI_AGENT_BRIDGE_CONFIG alone).
  *
  * Install:
  *   pi install /path/to/pi-agent-bridge
@@ -13,7 +14,7 @@
  *   GROK_ACP_COMMAND      launcher (default: grok)
  *   GROK_ACP_ARGS         args (default: agent --always-approve stdio)
  *   GROK_ACP_TIMEOUT_MS   per-turn timeout (default: 300000)
- *   PI_AGENT_BRIDGE_CONFIG models.jsonc path override
+ *   PI_AGENT_BRIDGE_CONFIG model config path override
  *
  * Security:
  *   Permissions are auto-approved.

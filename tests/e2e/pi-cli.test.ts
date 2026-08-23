@@ -45,7 +45,7 @@ async function whichPi(): Promise<string | null> {
 }
 
 describe("e2e/pi-cli", () => {
-  it("pi --list-models shows models from models.json", async (t) => {
+  it("pi --list-models shows models from configured file", async (t) => {
     const piPath = await whichPi();
     if (!piPath) {
       t.skip("pi CLI not installed");
@@ -55,10 +55,10 @@ describe("e2e/pi-cli", () => {
     const root = await mkdtemp(join(tmpdir(), "pi-agy-cli-e2e-"));
     const home = join(root, "home");
     const agentDir = join(home, ".pi", "agent");
-    const modelsDir = join(agentDir, "pi-agent-bridge");
-    await mkdir(modelsDir, { recursive: true });
+    const configPath = join(root, "pi-agent-bridge.jsonc");
+    await mkdir(agentDir, { recursive: true });
     await writeFile(
-      join(modelsDir, "models.json"),
+      configPath,
       JSON.stringify({
         agy: {
           models: {
@@ -81,6 +81,7 @@ describe("e2e/pi-cli", () => {
           ...process.env,
           HOME: home,
           PI_CODING_AGENT_DIR: agentDir,
+          PI_AGENT_BRIDGE_CONFIG: configPath,
         },
         45_000,
       );

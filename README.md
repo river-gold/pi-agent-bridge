@@ -40,21 +40,70 @@ Restart Pi, then pick a model under `/model`:
 
 Models are no longer edit-only-in-source. Prefer a JSON config:
 
-- default path: `<extension-root>/models.jsonc`
+- project path: `.pi/agent/pi-agent-bridge.jsonc` under Pi's startup working directory (`process.cwd()`)
+- home fallback: `~/.pi/agent/pi-agent-bridge.jsonc`
 - override path: env `PI_AGENT_BRIDGE_CONFIG`
-- example: [`models.jsonc`](./models.jsonc)
 
-Edit the package file, then restart Pi or `/reload`:
+Create the project config, then restart Pi or `/reload`:
 
 ```bash
-$EDITOR /path/to/pi-agent-bridge/models.jsonc
+mkdir -p .pi/agent
+$EDITOR .pi/agent/pi-agent-bridge.jsonc
 ```
 
 Rules:
 
-- default file is the package `models.jsonc` next to `package.json`
+- priority is explicit `configPath` > `PI_AGENT_BRIDGE_CONFIG` > project config > home config
+- explicit and env paths are used alone; a missing file does not fall back to project or home
+- the project file is authoritative when present; files and agent sections are not merged with the home config
+- only a missing project file falls back to home; malformed or unreadable files fail
 - missing file / missing agent section → that agent exposes **0 models**
 - agent section present → only those models are registered
+- JSONC comments and trailing commas are supported.
+- Other JSON syntax errors fail with the config path in the error.
+
+Current schema example:
+
+```jsonc
+{
+  // Model entries are grouped by agent.
+  "agy": {
+    "models": {
+      "gemini-3.7-flash": {
+        "name": "Gemini 3.7 Flash",
+        "defaultVariant": "high",
+        "variants": ["high", "medium", "low"],
+      },
+    },
+  },
+  "codex": {
+    "models": {
+      "gpt-5.6-sol": {
+        "name": "GPT-5.6 Sol",
+        "defaultEffort": "high",
+        "efforts": ["low", "medium", "high", "xhigh", "max"],
+      },
+    },
+  },
+  "grok": {
+    "models": {
+      "grok-4.6": {
+        "name": "Grok 4.6",
+        "defaultEffort": "high",
+        "efforts": ["low", "medium", "high", "xhigh"],
+      },
+    },
+  },
+  "cursor": {
+    "models": {
+      "auto": {
+        "name": "Auto",
+        "acpModelValue": "default[]",
+      },
+    },
+  },
+}
+```
 
 Per-model fields:
 
@@ -83,7 +132,7 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.jsonc` → `agy.models` (see `models.jsonc`).
+Configured via `.pi/agent/pi-agent-bridge.jsonc` → `agy.models`.
 
 Example:
 
@@ -116,7 +165,7 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.jsonc` → `codex.models` (see `models.jsonc`).
+Configured via `.pi/agent/pi-agent-bridge.jsonc` → `codex.models`.
 
 Example:
 
@@ -149,7 +198,7 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.jsonc` → `grok.models` (see `models.jsonc`).
+Configured via `.pi/agent/pi-agent-bridge.jsonc` → `grok.models`.
 
 Example:
 
@@ -189,7 +238,7 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-Configured via `models.jsonc` → `cursor.models` (see `models.jsonc`).
+Configured via `.pi/agent/pi-agent-bridge.jsonc` → `cursor.models`.
 
 Example:
 

@@ -3,7 +3,8 @@
  *
  * Spawns `npx -y @agentclientprotocol/codex-acp@1.6.0` and routes prompts
  * through the Agent Client Protocol.
- * Models: <extension-root>/models.jsonc (or PI_AGENT_BRIDGE_CONFIG).
+ * Models: .pi/agent/pi-agent-bridge.jsonc under Pi's startup cwd, then
+ * ~/.pi/agent/pi-agent-bridge.jsonc (or PI_AGENT_BRIDGE_CONFIG alone).
  *
  * Install:
  *   pi install /path/to/pi-agent-bridge
@@ -15,7 +16,7 @@
  *   CODEX_ACP_ARGS         args (default: -y @agentclientprotocol/codex-acp@1.6.0)
  *   CODEX_ACP_TIMEOUT_MS   per-turn timeout (default: 300000)
  *   CODEX_ACP_MODE         session mode (default: agent-full-access)
- *   PI_AGENT_BRIDGE_CONFIG models.jsonc path override
+ *   PI_AGENT_BRIDGE_CONFIG model config path override
  *
  * Security:
  *   Permissions are auto-approved (allow_always/allow_once).

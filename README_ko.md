@@ -40,21 +40,38 @@ Pi 재시작 후 `/model`에서 선택:
 
 모델 목록은 소스 하드코딩 대신 JSON 설정 파일을 쓴다.
 
-- 기본 경로: `<extension-root>/models.jsonc`
+- 프로젝트 경로: Pi 시작 작업 디렉터리(`process.cwd()`) 기준 `.pi/agent/pi-agent-bridge.jsonc`
+- 홈 fallback: `~/.pi/agent/pi-agent-bridge.jsonc`
 - 경로 오버라이드: env `PI_AGENT_BRIDGE_CONFIG`
-- 예제: [`models.jsonc`](./models.jsonc)
 
-패키지 파일을 수정한 뒤 Pi 재시작 또는 `/reload`:
+프로젝트 설정 파일을 만든 뒤 Pi 재시작 또는 `/reload`:
 
 ```bash
-$EDITOR /path/to/pi-agent-bridge/models.jsonc
+mkdir -p .pi/agent
+$EDITOR .pi/agent/pi-agent-bridge.jsonc
 ```
 
 규칙:
 
-- 기본 파일은 `package.json` 옆 패키지 `models.jsonc`
+- 우선순위는 명시적 `configPath` > `PI_AGENT_BRIDGE_CONFIG` > 프로젝트 설정 > 홈 설정
+- 명시적 경로와 env 경로는 단독 사용하며, 파일이 없어도 프로젝트/홈 경로로 fallback하지 않는다.
+- 프로젝트 파일이 있으면 전체 설정으로 사용하며 홈 설정과 파일/agent 단위로 병합하지 않는다.
+- 프로젝트 파일이 없을 때만 홈으로 fallback하며 문법 오류나 읽기 오류는 그대로 실패한다.
 - 파일 없음 / agent 섹션 없음 → 해당 agent 모델 **0개**
 - agent 섹션 있음 → 그 목록만 등록
+- JSONC 주석과 trailing comma를 지원한다.
+- 그 외 JSON 문법 오류는 설정 경로를 포함한 오류로 실패한다.
+
+현재 스키마 예제:
+
+```json
+{
+  "agy": { "models": { "gemini-3.7-flash": { "name": "Gemini 3.7 Flash", "defaultVariant": "high", "variants": ["high", "medium", "low"] } } },
+  "codex": { "models": { "gpt-5.6-sol": { "name": "GPT-5.6 Sol", "defaultEffort": "high", "efforts": ["low", "medium", "high", "xhigh", "max"] } } },
+  "grok": { "models": { "grok-4.6": { "name": "Grok 4.6", "defaultEffort": "high", "efforts": ["low", "medium", "high", "xhigh"] } } },
+  "cursor": { "models": { "auto": { "name": "Auto", "acpModelValue": "default[]" } } }
+}
+```
 
 모델 필드:
 
@@ -83,7 +100,7 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-`models.jsonc` → `agy.models` (`models.jsonc` 참고)
+`.pi/agent/pi-agent-bridge.jsonc` → `agy.models`
 
 예:
 
@@ -116,7 +133,7 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-`models.jsonc` → `codex.models` (`models.jsonc` 참고)
+`.pi/agent/pi-agent-bridge.jsonc` → `codex.models`
 
 예:
 
@@ -149,7 +166,7 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-`models.jsonc` → `grok.models` (`models.jsonc` 참고)
+`.pi/agent/pi-agent-bridge.jsonc` → `grok.models`
 
 예:
 
@@ -189,7 +206,7 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-`models.jsonc` → `cursor.models` (`models.jsonc` 참고)
+`.pi/agent/pi-agent-bridge.jsonc` → `cursor.models`
 
 예:
 

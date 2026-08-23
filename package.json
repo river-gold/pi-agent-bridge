@@ -20,7 +20,6 @@
   "files": [
     "extensions",
     "src",
-    "models.jsonc",
     "README.md",
     "README_ko.md"
   ],
@@ -43,7 +42,8 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^1.3.0"
+    "@agentclientprotocol/sdk": "^1.3.0",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "0.84.2",

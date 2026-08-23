@@ -1,11 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { parse, type ParseError } from "jsonc-parser";
 
-/** Package root (…/pi-agent-bridge), resolved from this file at src/shared/. */
-const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
-
-/** Per-agent model entry shape used in models.jsonc. */
+/** Per-agent model entry shape used in the project model config. */
 export interface ConfigModelEntry {
   name?: string;
   /** agy: suffix variants (high/medium/low) */
@@ -31,13 +29,9 @@ export interface ModelsConfigFile {
 
 export type AgentKey = keyof ModelsConfigFile;
 
-/** Default: `<extension-root>/models.jsonc` */
+/** Default: `.pi/agent/pi-agent-bridge.jsonc` under Pi's startup cwd. */
 export function defaultModelsConfigPath(): string {
-  return join(PACKAGE_ROOT, "models.jsonc");
-}
-
-export function packageRoot(): string {
-  return PACKAGE_ROOT;
+  return join(process.cwd(), ".pi", "agent", "pi-agent-bridge.jsonc");
 }
 
 export function resolveModelsConfigPath(override?: string): string {
@@ -96,7 +90,7 @@ function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
   return out;
 }
 
-/** Parse models.jsonc body. Invalid agent sections are ignored. */
+/** Parse the model config body. Invalid agent sections are ignored. */
 export function parseModelsConfig(raw: unknown): ModelsConfigFile {
   if (!isPlainObject(raw)) return {};
   const out: ModelsConfigFile = {};
@@ -108,28 +102,50 @@ export function parseModelsConfig(raw: unknown): ModelsConfigFile {
   return out;
 }
 
-export async function loadModelsConfigFile(path?: string): Promise<{
+interface LoadedModelsConfig {
   path: string;
   config: ModelsConfigFile;
   exists: boolean;
-}> {
-  const configPath = resolveModelsConfigPath(path);
+}
+
+async function readModelsConfigFile(configPath: string): Promise<LoadedModelsConfig> {
+  let text: string;
   try {
-    const text = await readFile(configPath, "utf-8");
-    const parsed = JSON.parse(text) as unknown;
-    return { path: configPath, config: parseModelsConfig(parsed), exists: true };
+    text = await readFile(configPath, "utf-8");
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error
       ? (error as { code?: unknown }).code
       : undefined;
-    if (code === "ENOENT") {
-      return { path: configPath, config: {}, exists: false };
-    }
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in models config ${configPath}: ${error.message}`);
-    }
+    if (code === "ENOENT") return { path: configPath, config: {}, exists: false };
     throw error;
   }
+
+  const errors: ParseError[] = [];
+  const parsed = parse(text, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  }) as unknown;
+  if (errors.length > 0) {
+    throw new Error(`Invalid JSONC in models config ${configPath}: ${errors[0].error}`);
+  }
+  return { path: configPath, config: parseModelsConfig(parsed), exists: true };
+}
+
+export async function loadModelsConfigFile(path?: string): Promise<LoadedModelsConfig> {
+  const overridePath = path?.trim();
+  const envPath = process.env.PI_AGENT_BRIDGE_CONFIG?.trim();
+  const configPath = overridePath || envPath;
+  if (configPath) return readModelsConfigFile(configPath);
+
+  const projectPath = defaultModelsConfigPath();
+  const projectConfig = await readModelsConfigFile(projectPath);
+  if (projectConfig.exists) return projectConfig;
+
+  const homePath = join(homedir(), ".pi", "agent", "pi-agent-bridge.jsonc");
+  if (homePath === projectPath) return projectConfig;
+
+  const homeConfig = await readModelsConfigFile(homePath);
+  return homeConfig.exists ? homeConfig : projectConfig;
 }
 
 /**
