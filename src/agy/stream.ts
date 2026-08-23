@@ -117,7 +117,6 @@ export function streamAgy(
       let streamed = false;
       let textStarted = false;
       let textIndex: number | null = null;
-      const toolIndices = new Map<string, number>();
 
       const pushText = (text: string) => {
         if (!text) return;
@@ -133,7 +132,6 @@ export function streamAgy(
           block.text += text;
           stream.push({ type: "text_delta", contentIndex: textIndex, delta: text, partial: output });
         }
-        streamed = true;
       };
 
       const result = await runAgyStream(
@@ -153,47 +151,18 @@ export function streamAgy(
             conversationId = event.id;
           }
           if (event.type === "text" && event.text) {
+            streamed = true;
             pushText(event.text);
           }
-          if (event.type === "tool_start") {
-            const idx = output.content.length;
-            const toolCall = {
-              type: "toolCall" as const,
-              id: event.id,
-              name: event.name,
-              arguments: event.args,
+          if (event.type === "tool_end" && event.output) {
+            const out = event.output;
+            const alias: Record<string, string> = {
+              grep_search: "rg",
+              list_dir: "ls",
+              view_file: "read",
             };
-            output.content.push(toolCall);
-            toolIndices.set(event.id, idx);
-            stream.push({ type: "toolcall_start", contentIndex: idx, partial: output });
-          }
-          if (event.type === "tool_end") {
-            let idx = toolIndices.get(event.id);
-            if (idx === undefined) {
-              const toolCall = {
-                type: "toolCall" as const,
-                id: event.id,
-                name: event.name,
-                arguments: event.args,
-              };
-              output.content.push(toolCall);
-              idx = output.content.length - 1;
-              stream.push({ type: "toolcall_start", contentIndex: idx, partial: output });
-              stream.push({ type: "toolcall_end", contentIndex: idx, toolCall, partial: output });
-            } else {
-              const existing = output.content[idx] as { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> };
-              stream.push({ type: "toolcall_end", contentIndex: idx, toolCall: existing, partial: output });
-            }
-            if (event.output) {
-              const out = event.output;
-              const alias: Record<string, string> = {
-                grep_search: "rg",
-                list_dir: "ls",
-                view_file: "read",
-              };
-              const displayName = alias[event.name] ?? event.name;
-              pushText(`\n[${displayName}] output:\n${out}\n`);
-            }
+            const displayName = alias[event.name] ?? event.name;
+            pushText(`\n[${displayName}] output:\n${out}\n`);
           }
         },
       );
@@ -251,7 +220,6 @@ export function streamAgy(
           })();
           const preview = fullText.slice(0, 2000);
           block.text = `Output too large (${Buffer.byteLength(fullText, "utf8")} bytes), saved to file://${outPath}\n\nPreview (first 2000 chars):\n${preview}\n...[full output in file]`;
-          // keep toolCalls, replace text with file reference
         }
         if (block?.type === "text") {
           stream.push({

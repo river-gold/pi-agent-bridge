@@ -526,6 +526,38 @@ process.exit(1);
     }
   });
 
+  it("keeps internal tool output and final response without requesting a Pi tool turn", async () => {
+    const env = await createE2EEnv();
+    try {
+      await writeMockAgy(
+        env,
+        `
+emit([
+  { event: "init", conversation_id: "c-tool" },
+  { event: "step_update", step_update: { step_type: "tool", step_index: 1, tool_name: "view_file", tool_info: { parameters: { path: "notes.txt" } }, state: "ACTIVE" } },
+  { event: "step_update", step_update: { step_type: "tool", step_index: 1, tool_name: "view_file", tool_info: { parameters: { path: "notes.txt" }, output: "file contents" }, state: "DONE" } },
+  { event: "result", result: { status: "SUCCESS", response: "final answer", usage: { input_tokens: 2, output_tokens: 2, total_tokens: 4 }, conversation_id: "c-tool" } },
+]);
+process.exit(0);
+`,
+      );
+      const runtime = makeRuntime(env);
+      const { events, message } = await collectStream(
+        streamAgy(runtime, makeModel("e2e-model"), userContext("use internal tool"), {
+          sessionId: "sess-tool",
+          timeoutMs: 5_000,
+        }),
+      );
+
+      assert.equal(message.stopReason, "stop");
+      assert.equal(textOf(message), "\n[read] output:\nfile contents\nfinal answer");
+      assert.ok(message.content.every((block) => block.type !== "toolCall"));
+      assert.ok(events.every((event) => !event.type.startsWith("toolcall_")));
+    } finally {
+      await destroyE2EEnv(env);
+    }
+  });
+
   it("non-streamed result still yields text via extract path", async () => {
     const env = await createE2EEnv();
     try {
