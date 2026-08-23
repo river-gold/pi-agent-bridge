@@ -2,7 +2,7 @@
  * Antigravity (agy) provider for pi.
  *
  * Routes prompts through the agy CLI.
- * Models: <extension-root>/models.json (or PI_AGENT_BRIDGE_CONFIG).
+ * Models: <extension-root>/models.jsonc (or PI_AGENT_BRIDGE_CONFIG).
  *
  * Install:
  *   pi install /path/to/pi-agent-bridge
@@ -14,7 +14,7 @@
  *   AGY_TIMEOUT_MS        per-turn timeout (default: 300000)
  *   AGY_EXTRA_ARGS        extra CLI args, space-separated
  *   AGY_CONVERSATIONS_DIR override conversation dir used for binding discovery
- *   PI_AGENT_BRIDGE_CONFIG  models.json path override
+ *   PI_AGENT_BRIDGE_CONFIG  models.jsonc path override
  *
  * Security:
  *   Every agy invocation uses --dangerously-skip-permissions.

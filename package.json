@@ -20,7 +20,7 @@
   "files": [
     "extensions",
     "src",
-    "models.json",
+    "models.jsonc",
     "README.md",
     "README_ko.md"
   ],

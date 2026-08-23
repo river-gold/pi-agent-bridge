@@ -2,14 +2,14 @@
  * Cursor ACP provider for pi.
  *
  * Spawns `cursor-agent acp` and routes prompts through ACP.
- * Models: <extension-root>/models.json (or PI_AGENT_BRIDGE_CONFIG).
+ * Models: <extension-root>/models.jsonc (or PI_AGENT_BRIDGE_CONFIG).
  *
  * Env:
  *   CURSOR_ACP_COMMAND      launcher (default: cursor-agent)
  *   CURSOR_ACP_ARGS         args (default: acp)
  *   CURSOR_ACP_TIMEOUT_MS   per-turn timeout (default: 300000)
  *   CURSOR_ACP_MODE         session mode agent|plan|ask (default: agent)
- *   PI_AGENT_BRIDGE_CONFIG  models.json path override
+ *   PI_AGENT_BRIDGE_CONFIG  models.jsonc path override
  *
  * Auth: run `cursor-agent login` first (ACP method cursor_login).
  *

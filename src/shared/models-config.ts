@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 /** Package root (…/pi-agent-bridge), resolved from this file at src/shared/. */
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Per-agent model entry shape used in models.json. */
+/** Per-agent model entry shape used in models.jsonc. */
 export interface ConfigModelEntry {
   name?: string;
   /** agy: suffix variants (high/medium/low) */
@@ -31,9 +31,9 @@ export interface ModelsConfigFile {
 
 export type AgentKey = keyof ModelsConfigFile;
 
-/** Default: `<extension-root>/models.json` */
+/** Default: `<extension-root>/models.jsonc` */
 export function defaultModelsConfigPath(): string {
-  return join(PACKAGE_ROOT, "models.json");
+  return join(PACKAGE_ROOT, "models.jsonc");
 }
 
 export function packageRoot(): string {
@@ -96,7 +96,7 @@ function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
   return out;
 }
 
-/** Parse models.json body. Invalid agent sections are ignored. */
+/** Parse models.jsonc body. Invalid agent sections are ignored. */
 export function parseModelsConfig(raw: unknown): ModelsConfigFile {
   if (!isPlainObject(raw)) return {};
   const out: ModelsConfigFile = {};

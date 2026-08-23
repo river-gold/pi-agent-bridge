@@ -21,7 +21,7 @@ describe("models-config", () => {
     try {
       delete process.env.PI_AGENT_BRIDGE_CONFIG;
       assert.equal(resolveModelsConfigPath(), defaultModelsConfigPath());
-      assert.match(defaultModelsConfigPath(), /models\.json$/);
+      assert.match(defaultModelsConfigPath(), /models\.jsonc$/);
       assert.ok(defaultModelsConfigPath().includes("pi-agent-bridge"));
       assert.equal(resolveModelsConfigPath("/tmp/x.json"), "/tmp/x.json");
       process.env.PI_AGENT_BRIDGE_CONFIG = "/tmp/env.json";

@@ -40,19 +40,19 @@ Pi 재시작 후 `/model`에서 선택:
 
 모델 목록은 소스 하드코딩 대신 JSON 설정 파일을 쓴다.
 
-- 기본 경로: `<extension-root>/models.json`
+- 기본 경로: `<extension-root>/models.jsonc`
 - 경로 오버라이드: env `PI_AGENT_BRIDGE_CONFIG`
-- 예제: [`models.json`](./models.json)
+- 예제: [`models.jsonc`](./models.jsonc)
 
 패키지 파일을 수정한 뒤 Pi 재시작 또는 `/reload`:
 
 ```bash
-$EDITOR /path/to/pi-agent-bridge/models.json
+$EDITOR /path/to/pi-agent-bridge/models.jsonc
 ```
 
 규칙:
 
-- 기본 파일은 `package.json` 옆 패키지 `models.json`
+- 기본 파일은 `package.json` 옆 패키지 `models.jsonc`
 - 파일 없음 / agent 섹션 없음 → 해당 agent 모델 **0개**
 - agent 섹션 있음 → 그 목록만 등록
 
@@ -83,7 +83,7 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-`models.json` → `agy.models` (`models.json` 참고)
+`models.jsonc` → `agy.models` (`models.jsonc` 참고)
 
 예:
 
@@ -116,7 +116,7 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-`models.json` → `codex.models` (`models.json` 참고)
+`models.jsonc` → `codex.models` (`models.jsonc` 참고)
 
 예:
 
@@ -149,7 +149,7 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-`models.json` → `grok.models` (`models.json` 참고)
+`models.jsonc` → `grok.models` (`models.jsonc` 참고)
 
 예:
 
@@ -189,7 +189,7 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-`models.json` → `cursor.models` (`models.json` 참고)
+`models.jsonc` → `cursor.models` (`models.jsonc` 참고)
 
 예:
 

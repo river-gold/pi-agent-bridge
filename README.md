@@ -40,19 +40,19 @@ Restart Pi, then pick a model under `/model`:
 
 Models are no longer edit-only-in-source. Prefer a JSON config:
 
-- default path: `<extension-root>/models.json`
+- default path: `<extension-root>/models.jsonc`
 - override path: env `PI_AGENT_BRIDGE_CONFIG`
-- example: [`models.json`](./models.json)
+- example: [`models.jsonc`](./models.jsonc)
 
 Edit the package file, then restart Pi or `/reload`:
 
 ```bash
-$EDITOR /path/to/pi-agent-bridge/models.json
+$EDITOR /path/to/pi-agent-bridge/models.jsonc
 ```
 
 Rules:
 
-- default file is the package `models.json` next to `package.json`
+- default file is the package `models.jsonc` next to `package.json`
 - missing file / missing agent section → that agent exposes **0 models**
 - agent section present → only those models are registered
 
@@ -83,7 +83,7 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.json` → `agy.models` (see `models.json`).
+Configured via `models.jsonc` → `agy.models` (see `models.jsonc`).
 
 Example:
 
@@ -116,7 +116,7 @@ State: `~/.pi/agent/codex/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.json` → `codex.models` (see `models.json`).
+Configured via `models.jsonc` → `codex.models` (see `models.jsonc`).
 
 Example:
 
@@ -149,7 +149,7 @@ State: `~/.pi/agent/grok/sessions.json`
 
 ### Models / thinking
 
-Configured via `models.json` → `grok.models` (see `models.json`).
+Configured via `models.jsonc` → `grok.models` (see `models.jsonc`).
 
 Example:
 
@@ -189,7 +189,7 @@ Auth: `cursor-agent login` (ACP `cursor_login`)
 
 ### Models
 
-Configured via `models.json` → `cursor.models` (see `models.json`).
+Configured via `models.jsonc` → `cursor.models` (see `models.jsonc`).
 
 Example:
 
