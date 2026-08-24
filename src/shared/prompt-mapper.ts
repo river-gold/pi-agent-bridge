@@ -15,7 +15,7 @@ export function mapPrompt(messages: Message[]): string {
   return "";
 }
 
-function extractTask(raw: string): string {
+export function extractTask(raw: string): string {
   let t = raw.trim();
   if (t.startsWith("Task: ")) t = t.slice(6).trimStart();
   const cutMarkers = ["\n---\n", "\n**Output:**", "**Output:**", "## Acceptance Contract", "```acceptance-report"];
@@ -26,7 +26,7 @@ function extractTask(raw: string): string {
   return t.trim();
 }
 
-function extractText(msg: Message): string {
+export function extractText(msg: Message): string {
   if (msg.role !== "user") return "";
   if (typeof msg.content === "string") return msg.content;
   return msg.content
