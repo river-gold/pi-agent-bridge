@@ -22,6 +22,7 @@ export type AgentModelCatalog = Record<string, ConfigModelEntry>;
 
 export interface ModelsConfigFile {
   agy?: { models?: AgentModelCatalog };
+  antigravity?: { models?: AgentModelCatalog };
   codex?: { models?: AgentModelCatalog };
   grok?: { models?: AgentModelCatalog };
   cursor?: { models?: AgentModelCatalog };
@@ -94,7 +95,7 @@ function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
 export function parseModelsConfig(raw: unknown): ModelsConfigFile {
   if (!isPlainObject(raw)) return {};
   const out: ModelsConfigFile = {};
-  for (const agent of ["agy", "codex", "grok", "cursor"] as const) {
+  for (const agent of ["agy", "antigravity", "codex", "grok", "cursor"] as const) {
     if (!(agent in raw)) continue;
     const models = parseAgentSection(raw[agent]);
     if (models !== undefined) out[agent] = { models };

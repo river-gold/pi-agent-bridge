@@ -25,7 +25,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/agy.ts",
+      "./extensions/antigravity.ts",
       "./extensions/codex.ts",
       "./extensions/grok.ts",
       "./extensions/cursor.ts"

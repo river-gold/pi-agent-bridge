@@ -5,9 +5,11 @@ import {
   type ConfigModelEntry,
 } from "../shared/models-config.ts";
 
-const AGY_API = "agy-cli";
-const AGY_PROVIDER = "agy";
-const AGY_BASE_URL = "local://agy";
+const AGY_API = "openai-completions";
+const AGY_PROVIDER = "antigravity";
+const AGY_BASE_URL = "pi-agent-bridge://antigravity";
+// Keep old constants for migration fallback
+const LEGACY_AGY_PROVIDER = "agy";
 
 export interface DiscoveredAgyModel {
   name: string;
@@ -46,8 +48,8 @@ function mapConfigEntry(id: string, entry: ConfigModelEntry): DiscoveredAgyModel
 
 export function toPiModels(
   discovered: Record<string, DiscoveredAgyModel> = {},
-): { models: Model<"agy-cli">[]; meta: Map<string, AgyModelMeta> } {
-  const models: Model<"agy-cli">[] = [];
+): { models: Model<"openai-completions">[]; meta: Map<string, AgyModelMeta> } {
+  const models: Model<"openai-completions">[] = [];
   const meta = new Map<string, AgyModelMeta>();
 
   for (const [id, info] of Object.entries(discovered)) {
@@ -79,6 +81,9 @@ export function toPiModels(
 
 export async function loadAgyCatalog(configPath?: string): Promise<Record<string, DiscoveredAgyModel>> {
   const { config } = await loadModelsConfigFile(configPath);
+  // Prefer "antigravity" key, fallback to legacy "agy" for migration
+  const primary = resolveAgentCatalog("antigravity" as any, config, mapConfigEntry);
+  if (Object.keys(primary).length > 0) return primary;
   return resolveAgentCatalog("agy", config, mapConfigEntry);
 }
 
@@ -89,7 +94,7 @@ export async function discoverModels(opts?: {
   ttlMs?: number;
   force?: boolean;
   configPath?: string;
-}): Promise<{ models: Model<"agy-cli">[]; meta: Map<string, AgyModelMeta> }> {
+}): Promise<{ models: Model<"openai-completions">[]; meta: Map<string, AgyModelMeta> }> {
   const catalog = await loadAgyCatalog(opts?.configPath);
   return toPiModels(catalog);
 }

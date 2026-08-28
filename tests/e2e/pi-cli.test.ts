@@ -60,7 +60,7 @@ describe("e2e/pi-cli", () => {
     await writeFile(
       configPath,
       JSON.stringify({
-        agy: {
+        antigravity: {
           models: {
             "gemini-3.7-flash": {
               name: "Gemini 3.7 Flash",
@@ -88,7 +88,7 @@ describe("e2e/pi-cli", () => {
 
       const out = result.stdout + "\n" + result.stderr;
       assert.equal(result.code, 0, out);
-      assert.match(out, /\bagy\b/);
+      assert.match(out, /\bantigravity\b/);
       assert.match(out, /gemini-3\.7-flash/);
       assert.doesNotMatch(out, /claude-sonnet-4-6/);
     } finally {
