@@ -2,7 +2,6 @@
   "defaultProvider": "router",
   "defaultModel": "muse-spark",
   "enabledModels": [
-    "router/*",
-    "antigravity/*"
+    "*/*"
   ]
 }
