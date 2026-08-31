@@ -1,7 +1,4 @@
 {
   "defaultProvider": "router",
-  "defaultModel": "muse-spark",
-  "enabledModels": [
-    "*/*"
-  ]
+  "defaultModel": "muse-spark"
 }

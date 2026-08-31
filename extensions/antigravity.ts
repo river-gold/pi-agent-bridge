@@ -293,22 +293,6 @@ export default async function (pi: ExtensionAPI) {
     }),
   );
 
-  // Hook for pi-model-router to delegate without HTTP (avoids pi-agent-bridge:// fetch)
-  try {
-    const g = globalThis as unknown as {
-      __piModelRouterLocalHandlers?: Map<string, (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream>;
-    };
-    if (!g.__piModelRouterLocalHandlers) g.__piModelRouterLocalHandlers = new Map();
-    g.__piModelRouterLocalHandlers.set(
-      "pi-agent-bridge://antigravity",
-      stream as unknown as (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream,
-    );
-    g.__piModelRouterLocalHandlers.set(
-      "pi-agent-bridge://",
-      stream as unknown as (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream,
-    );
-  } catch {}
-
   pi.on("session_start", (_event, ctx) => {
     cwd = ctx.cwd;
   });
