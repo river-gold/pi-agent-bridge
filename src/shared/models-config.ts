@@ -9,11 +9,6 @@ export interface ConfigModelEntry {
   /** agy: suffix variants (high/medium/low) */
   variants?: string[];
   defaultVariant?: string;
-  /** codex/grok: effort list */
-  efforts?: string[];
-  defaultEffort?: string;
-  /** cursor: exact ACP set_config_option model value */
-  acpModelValue?: string;
   contextWindow?: number;
   maxTokens?: number;
 }
@@ -23,9 +18,6 @@ export type AgentModelCatalog = Record<string, ConfigModelEntry>;
 export interface ModelsConfigFile {
   agy?: { models?: AgentModelCatalog };
   antigravity?: { models?: AgentModelCatalog };
-  codex?: { models?: AgentModelCatalog };
-  grok?: { models?: AgentModelCatalog };
-  cursor?: { models?: AgentModelCatalog };
 }
 
 export type AgentKey = keyof ModelsConfigFile;
@@ -59,14 +51,6 @@ function parseModelEntry(raw: unknown, id: string): ConfigModelEntry | null {
   if (typeof raw.defaultVariant === "string" && raw.defaultVariant.trim()) {
     entry.defaultVariant = raw.defaultVariant.trim();
   }
-  const efforts = asStringArray(raw.efforts);
-  if (efforts) entry.efforts = efforts;
-  if (typeof raw.defaultEffort === "string" && raw.defaultEffort.trim()) {
-    entry.defaultEffort = raw.defaultEffort.trim();
-  }
-  if (typeof raw.acpModelValue === "string" && raw.acpModelValue.trim()) {
-    entry.acpModelValue = raw.acpModelValue.trim();
-  }
   if (typeof raw.contextWindow === "number" && Number.isFinite(raw.contextWindow) && raw.contextWindow > 0) {
     entry.contextWindow = Math.floor(raw.contextWindow);
   }
@@ -95,7 +79,7 @@ function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
 export function parseModelsConfig(raw: unknown): ModelsConfigFile {
   if (!isPlainObject(raw)) return {};
   const out: ModelsConfigFile = {};
-  for (const agent of ["agy", "antigravity", "codex", "grok", "cursor"] as const) {
+  for (const agent of ["agy", "antigravity"] as const) {
     if (!(agent in raw)) continue;
     const models = parseAgentSection(raw[agent]);
     if (models !== undefined) out[agent] = { models };

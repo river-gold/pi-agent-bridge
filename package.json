@@ -1,7 +1,7 @@
 {
   "name": "pi-agent-bridge",
   "version": "0.1.0",
-  "description": "Pi extension that routes prompts to agy, Codex/Grok/Cursor ACP agents",
+  "description": "Pi extension that routes prompts to agy (Antigravity) CLI", 
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -11,10 +11,6 @@
     "extension",
     "agy",
     "antigravity",
-    "codex",
-    "grok",
-    "cursor",
-    "acp",
     "provider"
   ],
   "files": [
@@ -25,10 +21,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/antigravity.ts",
-      "./extensions/codex.ts",
-      "./extensions/grok.ts",
-      "./extensions/cursor.ts"
+      "./extensions/antigravity.ts"
     ]
   },
   "scripts": {
@@ -38,16 +31,16 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
     "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.3.0",
     "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "^0.84.3",
-    "@earendil-works/pi-coding-agent": "^0.84.3",
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0"
   }

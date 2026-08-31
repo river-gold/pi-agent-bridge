@@ -6,9 +6,6 @@ import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
 import { discoverModels as discoverAgy } from "../src/agy/agy-models.ts";
-import { discoverModels as discoverCodex } from "../src/codex/models.ts";
-import { discoverModels as discoverCursor } from "../src/cursor/models.ts";
-import { discoverModels as discoverGrok } from "../src/grok/models.ts";
 import {
   defaultModelsConfigPath,
   loadModelsConfigFile,
@@ -101,7 +98,7 @@ describe("models-config", () => {
     const explicitPath = join(root, "explicit.jsonc");
     await mkdir(project, { recursive: true });
     try {
-      await writeModelsConfig(project, { codex: { models: { project: {} } } });
+      await writeModelsConfig(project, { agy: { models: { project: {} } } });
       await writeModelsConfig(home, { agy: { models: { home: {} } } });
       await writeFile(envPath, JSON.stringify({ agy: { models: { env: {} } } }));
       await writeFile(explicitPath, JSON.stringify({ agy: { models: { explicit: {} } } }));
@@ -134,8 +131,7 @@ describe("models-config", () => {
       const fromProject = await loadModelsConfigInChild({ cwd: project, home });
       assertLoaded(fromProject);
       assert.equal(fromProject.loaded.path, projectPath);
-      assert.deepEqual(Object.keys(fromProject.loaded.config.codex?.models ?? {}), ["project"]);
-      assert.equal(fromProject.loaded.config.agy, undefined);
+      assert.deepEqual(Object.keys(fromProject.loaded.config.agy?.models ?? {}), ["project"]);
 
       await writeFile(projectPath, "{}", "utf-8");
       const emptyProject = await loadModelsConfigInChild({ cwd: project, home });
@@ -188,12 +184,12 @@ describe("models-config", () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "pi-models-same-path-")));
     try {
       const path = await writeModelsConfig(root, {
-        cursor: { models: { same: { name: "Same path" } } },
+        agy: { models: { same: { name: "Same path" } } },
       });
       const present = await loadModelsConfigInChild({ cwd: root, home: root });
       assertLoaded(present);
       assert.equal(present.loaded.path, path);
-      assert.deepEqual(Object.keys(present.loaded.config.cursor?.models ?? {}), ["same"]);
+      assert.deepEqual(Object.keys(present.loaded.config.agy?.models ?? {}), ["same"]);
 
       await rm(path);
       const missing = await loadModelsConfigInChild({ cwd: root, home: root });
@@ -211,21 +207,15 @@ describe("models-config", () => {
           m1: { name: "M1", variants: ["high", "low"], defaultVariant: "high" },
         },
       },
-      cursor: {
-        models: {
-          "default[]": { name: "Auto" },
-        },
-      },
       ignored: { models: { x: {} } },
     });
     assert.deepEqual(Object.keys(cfg.agy?.models ?? {}), ["m1"]);
     assert.equal(cfg.agy?.models?.m1?.defaultVariant, "high");
-    assert.equal(cfg.cursor?.models?.["default[]"]?.name, "Auto");
-    assert.equal(cfg.codex, undefined);
+    assert.equal((cfg as Record<string, unknown>).ignored, undefined);
   });
 
   it("resolveAgentCatalog returns empty when section missing", () => {
-    const out = resolveAgentCatalog("codex", {}, (id, e) => ({
+    const out = resolveAgentCatalog("agy", {}, (id, e) => ({
       name: e.name ?? id,
     }));
     assert.deepEqual(out, {});
@@ -233,8 +223,8 @@ describe("models-config", () => {
 
   it("resolveAgentCatalog maps section models", () => {
     const out = resolveAgentCatalog(
-      "codex",
-      { codex: { models: { b: { name: "B" } } } },
+      "agy",
+      { agy: { models: { b: { name: "B" } } } },
       (id, e) => ({ name: e.name ?? id }),
     );
     assert.deepEqual(out, { b: { name: "B" } });
@@ -256,32 +246,6 @@ describe("models-config", () => {
               },
             },
           },
-          codex: {
-            models: {
-              "only-sol": {
-                name: "Only Sol",
-                efforts: ["low", "high"],
-                defaultEffort: "low",
-              },
-            },
-          },
-          grok: {
-            models: {
-              "grok-x": {
-                name: "Grok X",
-                efforts: ["medium"],
-                defaultEffort: "medium",
-              },
-            },
-          },
-          cursor: {
-            models: {
-              composer: {
-                name: "Composer",
-                acpModelValue: "composer-2.5[fast=true]",
-              },
-            },
-          },
         }),
         "utf-8",
       );
@@ -294,26 +258,6 @@ describe("models-config", () => {
         agy.models.map((m) => m.id),
         ["custom-agy"],
       );
-
-      const codex = await discoverCodex({ configPath: path });
-      assert.deepEqual(
-        codex.models.map((m) => m.id),
-        ["only-sol"],
-      );
-      assert.equal(codex.meta.get("only-sol")?.defaultEffort, "low");
-
-      const grok = await discoverGrok({ configPath: path });
-      assert.deepEqual(
-        grok.models.map((m) => m.id),
-        ["grok-x"],
-      );
-
-      const cursor = await discoverCursor({ configPath: path });
-      assert.deepEqual(
-        cursor.models.map((m) => m.id),
-        ["composer"],
-      );
-      assert.equal(cursor.meta.get("composer")?.acpModelValue, "composer-2.5[fast=true]");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -372,7 +316,5 @@ describe("models-config", () => {
     const missing = join(tmpdir(), "pi-models-missing-" + Date.now() + ".json");
     const agy = await discoverAgy({ configPath: missing });
     assert.equal(agy.models.length, 0);
-    const cursor = await discoverCursor({ configPath: missing });
-    assert.equal(cursor.models.length, 0);
   });
 });
