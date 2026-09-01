@@ -1,7 +1,6 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { mapPrompt } from "../src/agy/prompt-mapper.ts";
 import type { Message } from "@earendil-works/pi-ai";
+import { describe, expect, it } from "vitest";
+import { mapPrompt } from "../src/agy/prompt-mapper.ts";
 
 const assistant = (text: string): Message => ({
 	role: "assistant",
@@ -26,7 +25,7 @@ describe("mapPrompt", () => {
 		const messages: Message[] = [
 			{ role: "user", content: "hello", timestamp: 1 },
 		];
-		assert.equal(mapPrompt(messages), "hello");
+		expect(mapPrompt(messages)).toBe("hello");
 	});
 
 	it("ignores history and returns only latest user text", () => {
@@ -35,7 +34,7 @@ describe("mapPrompt", () => {
 			assistant("reply"),
 			{ role: "user", content: "only this", timestamp: 3 },
 		];
-		assert.equal(mapPrompt(messages), "only this");
+		expect(mapPrompt(messages)).toBe("only this");
 	});
 
 	it("ignores tool results after last user", () => {
@@ -51,10 +50,10 @@ describe("mapPrompt", () => {
 				timestamp: 3,
 			},
 		];
-		assert.equal(mapPrompt(messages), "do it");
+		expect(mapPrompt(messages)).toBe("do it");
 	});
 
 	it("returns empty when no user message", () => {
-		assert.equal(mapPrompt([assistant("x")]), "");
+		expect(mapPrompt([assistant("x")])).toBe("");
 	});
 });

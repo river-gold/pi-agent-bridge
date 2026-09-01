@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { discoverModels, toPiModels } from "../../src/agy/agy-models.ts";
 
 describe("e2e/models", () => {
@@ -13,7 +12,7 @@ describe("e2e/models", () => {
 			force: true,
 			configPath: "/tmp/pi-agent-bridge-no-models.json",
 		});
-		assert.equal(result.models.length, 0);
+		expect(result.models.length).toBe(0);
 	});
 
 	it("discoverModels loads models from config file", async () => {
@@ -36,9 +35,9 @@ describe("e2e/models", () => {
 				"utf-8",
 			);
 			const result = await discoverModels({ configPath: path });
-			assert.equal(result.models.length, 1);
-			assert.equal(result.models[0]?.id, "gemini-3.7-flash");
-			assert.deepEqual(result.meta.get("gemini-3.7-flash")?.variants, [
+			expect(result.models.length).toBe(1);
+			expect(result.models[0]?.id).toBe("gemini-3.7-flash");
+			expect(result.meta.get("gemini-3.7-flash")?.variants).toEqual([
 				"high",
 				"medium",
 				"low",
@@ -50,10 +49,7 @@ describe("e2e/models", () => {
 					variants: ["high", "medium", "low"],
 				},
 			});
-			assert.deepEqual(
-				models.map((m) => m.id),
-				["gemini-3.7-flash"],
-			);
+			expect(models.map((m) => m.id)).toEqual(["gemini-3.7-flash"]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import {
 	chmod,
 	mkdir,
@@ -9,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { AgyPool, compositeKey, hashCwd } from "../src/agy/agy-pool.ts";
 
 /** helper: delay */
@@ -129,30 +128,22 @@ describe("agy-pool (long-lived)", () => {
 		try {
 			const h1 = pool.acquire("sess-reuse", cwd);
 			const r1 = await h1.prompt("turn1");
-			assert.equal(r1.stdout, "echo:turn1");
-			assert.ok(r1.conversationId);
+			expect(r1.stdout).toBe("echo:turn1");
+			expect(r1.conversationId).toBeTruthy();
 			const cnt1 = await spawnCount(spawnLog);
-			assert.equal(cnt1, 1, "first turn should spawn exactly one process");
+			expect(cnt1).toBe(1);
 			const conv1 = r1.conversationId;
-			assert.equal(pool.size(), 1);
+			expect(pool.size()).toBe(1);
 			const key = h1.key;
 			// second turn same key
 			const h2 = pool.acquire("sess-reuse", cwd);
-			assert.equal(
-				h2.key,
-				key,
-				"same sessionKey should map to same composite key",
-			);
+			expect(h2.key).toBe(key);
 			const r2 = await h2.prompt("turn2");
-			assert.equal(r2.stdout, "echo:turn2");
-			assert.equal(
-				r2.conversationId,
-				conv1,
-				"reused process keeps same conversationId",
-			);
+			expect(r2.stdout).toBe("echo:turn2");
+			expect(r2.conversationId).toBe(conv1);
 			const cnt2 = await spawnCount(spawnLog);
-			assert.equal(cnt2, 1, "second turn must not spawn new process");
-			assert.equal(pool.size(), 1);
+			expect(cnt2).toBe(1);
+			expect(pool.size()).toBe(1);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -177,30 +168,22 @@ describe("agy-pool (long-lived)", () => {
 			// different sessionId, same cwd
 			const ra = await pool.acquire("sess-A", cwd).prompt("hello-A");
 			const rb = await pool.acquire("sess-B", cwd).prompt("hello-B");
-			assert.equal(ra.stdout, "echo:hello-A");
-			assert.equal(rb.stdout, "echo:hello-B");
-			assert.notEqual(
-				ra.conversationId,
-				rb.conversationId,
-				"different sessionId must have different conversationIds",
-			);
-			assert.equal(pool.size(), 2);
+			expect(ra.stdout).toBe("echo:hello-A");
+			expect(rb.stdout).toBe("echo:hello-B");
+			expect(ra.conversationId).not.toBe(rb.conversationId);
+			expect(pool.size()).toBe(2);
 			const cnt = await spawnCount(spawnLog);
-			assert.equal(cnt, 2);
+			expect(cnt).toBe(2);
 			// same sessionId, different cwd -> also isolated
 			const rc = await pool.acquire("sess-A", cwd2).prompt("hello-A2");
-			assert.notEqual(rc.conversationId, ra.conversationId);
-			assert.equal(pool.size(), 3);
+			expect(rc.conversationId).not.toBe(ra.conversationId);
+			expect(pool.size()).toBe(3);
 			const pids = await readSpawnPids(spawnLog);
-			assert.equal(
-				new Set(pids).size,
-				3,
-				"each isolated key should have distinct pid",
-			);
+			expect(new Set(pids).size).toBe(3);
 			// ensure no mixing: re-prompt A still returns A echo not B
 			const ra2 = await pool.acquire("sess-A", cwd).prompt("again-A");
-			assert.equal(ra2.stdout, "echo:again-A");
-			assert.equal(ra2.conversationId, ra.conversationId);
+			expect(ra2.stdout).toBe("echo:again-A");
+			expect(ra2.conversationId).toBe(ra.conversationId);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -224,27 +207,27 @@ describe("agy-pool (long-lived)", () => {
 		try {
 			const kA = compositeKey("sess", cwdA);
 			const kB = compositeKey("sess", cwdB);
-			assert.notEqual(kA, kB, "hash differs for different cwd");
-			assert.equal(hashCwd(cwdA).length, 16);
+			expect(kA).not.toBe(kB);
+			expect(hashCwd(cwdA).length).toBe(16);
 			const rA = await pool.acquire("sess", cwdA).prompt("in-A");
-			assert.equal(pool.size(), 1);
-			assert.ok(pool.has(kA));
-			assert.ok(!pool.has(kB));
+			expect(pool.size()).toBe(1);
+			expect(pool.has(kA)).toBeTruthy();
+			expect(!pool.has(kB)).toBeTruthy();
 			const rB = await pool.acquire("sess", cwdB).prompt("in-B");
-			assert.equal(rB.stdout, "echo:in-B");
-			assert.notEqual(rA.conversationId, rB.conversationId);
-			assert.equal(pool.size(), 2);
-			assert.ok(pool.has(kA));
-			assert.ok(pool.has(kB));
+			expect(rB.stdout).toBe("echo:in-B");
+			expect(rA.conversationId).not.toBe(rB.conversationId);
+			expect(pool.size()).toBe(2);
+			expect(pool.has(kA)).toBeTruthy();
+			expect(pool.has(kB)).toBeTruthy();
 			// acquiring composite directly with mismatched cwd should evict
 			const composite = kA; // old key
 			// this call passes composite as sessionKey and different cwd => isCompositeKey true path, ensure entry checks cwd mismatch and respawns
 			const sizeBefore = pool.size();
 			const rMismatch = await pool.acquire(composite, cwdB).prompt("mismatch");
 			// after mismatch, the composite key still points to an entry but with cwdB now; size may stay 2 or become 2 (evict+new)
-			assert.equal(rMismatch.stdout, "echo:mismatch");
+			expect(rMismatch.stdout).toBe("echo:mismatch");
 			// At least we verified no crash and process handling for mismatch
-			assert.ok(pool.size() >= 1);
+			expect(pool.size() >= 1).toBeTruthy();
 			void sizeBefore; // suppress unused
 		} finally {
 			await pool.disposeAll().catch(() => {});
@@ -288,16 +271,13 @@ describe("agy-pool (long-lived)", () => {
 			const t0 = Date.now();
 			const [r1, r2] = await Promise.all([p1, p2]);
 			const elapsed = Date.now() - t0;
-			assert.equal(r1.stdout, "echo:slow-first");
-			assert.equal(r2.stdout, "echo:second-fast");
+			expect(r1.stdout).toBe("echo:slow-first");
+			expect(r2.stdout).toBe("echo:second-fast");
 			// queued => total time at least delay of first
-			assert.ok(
-				elapsed >= 180,
-				`queue should serialize, elapsed ${elapsed}ms too short`,
-			);
+			expect(elapsed >= 180).toBeTruthy();
 			// ensure second didn't interleave: its text events only after first finished
-			assert.deepEqual(eventsA, ["echo:slow-first"]);
-			assert.deepEqual(eventsB, ["echo:second-fast"]);
+			expect(eventsA).toEqual(["echo:slow-first"]);
+			expect(eventsB).toEqual(["echo:second-fast"]);
 			// also test three concurrent maintain order
 			const h = pool.acquire("queue-key", cwd);
 			const order: string[] = [];
@@ -314,16 +294,12 @@ describe("agy-pool (long-lived)", () => {
 				return r;
 			});
 			const [ra, rb, rc] = await Promise.all([pa, pb, pc]);
-			assert.equal(ra.stdout, "echo:slow-A");
-			assert.equal(rb.stdout, "echo:slow-B");
-			assert.equal(rc.stdout, "echo:C");
-			assert.deepEqual(
-				order,
-				["echo:slow-A", "echo:slow-B", "echo:C"],
-				"queue must preserve submission order",
-			);
+			expect(ra.stdout).toBe("echo:slow-A");
+			expect(rb.stdout).toBe("echo:slow-B");
+			expect(rc.stdout).toBe("echo:C");
+			expect(order).toEqual(["echo:slow-A", "echo:slow-B", "echo:C"]);
 			const cnt = await spawnCount(spawnLog);
-			assert.equal(cnt, 1, "queued turns must reuse same process");
+			expect(cnt).toBe(1);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -345,17 +321,17 @@ describe("agy-pool (long-lived)", () => {
 		try {
 			const key = compositeKey("crash-sess", cwd);
 			const r1 = await pool.acquire("crash-sess", cwd).prompt("first");
-			assert.equal(r1.stdout, "echo:first");
+			expect(r1.stdout).toBe("echo:first");
 			const conv1 = r1.conversationId;
-			assert.equal(await spawnCount(spawnLog), 1);
-			assert.ok(pool.has(key));
+			expect(await spawnCount(spawnLog)).toBe(1);
+			expect(pool.has(key)).toBeTruthy();
 			// kill underlying child
 			const entry = (
 				pool as unknown as {
 					entries: Map<string, { child: { kill: (sig: string) => void } }>;
 				}
 			).entries.get(key);
-			assert.ok(entry, "entry should exist");
+			expect(entry).toBeTruthy();
 			try {
 				entry.child.kill("SIGKILL");
 			} catch {}
@@ -364,17 +340,13 @@ describe("agy-pool (long-lived)", () => {
 				if (!pool.has(key)) break;
 				await delay(50);
 			}
-			assert.equal(pool.has(key), false, "killed process should be evicted");
+			expect(pool.has(key)).toBe(false);
 			// next turn should respawn and succeed with new conversationId
 			const r2 = await pool.acquire("crash-sess", cwd).prompt("second");
-			assert.equal(r2.stdout, "echo:second");
-			assert.notEqual(
-				r2.conversationId,
-				conv1,
-				"respawned process should have new conversationId",
-			);
-			assert.equal(await spawnCount(spawnLog), 2);
-			assert.ok(pool.has(key));
+			expect(r2.stdout).toBe("echo:second");
+			expect(r2.conversationId).not.toBe(conv1);
+			expect(await spawnCount(spawnLog)).toBe(2);
+			expect(pool.has(key)).toBeTruthy();
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -409,36 +381,32 @@ describe("agy-pool (long-lived)", () => {
 			const p = handle.prompt("will-abort", { signal: ac.signal });
 			await delay(60);
 			ac.abort();
-			await assert.rejects(
-				() => p,
-				(err: Error) => {
-					assert.equal(err.name, "AbortError");
-					return true;
-				},
-			);
+			try {
+				await p;
+				expect.fail("should have thrown");
+			} catch (err) {
+				expect((err as Error).name).toBe("AbortError");
+			}
 			// give pool time to evict and kill old child
 			await delay(350);
 			const before = await spawnCount(spawnLog);
 			// next turn should respawn and succeed (at least one spawn before)
 			const r2 = await pool.acquire("abort-sess", cwd).prompt("after-abort");
-			assert.equal(r2.stdout, "echo:after-abort");
+			expect(r2.stdout).toBe("echo:after-abort");
 			const after = await spawnCount(spawnLog);
 			// if dispose worked, after should be before+1; if implementation keeps old pid, at least after >=1
-			assert.ok(
-				after >= before,
-				`spawn count should not decrease after respawn ${before} -> ${after}`,
-			);
+			expect(after >= before).toBeTruthy();
 			// immediate abort before even writing
 			const ac2 = new AbortController();
 			ac2.abort();
-			await assert.rejects(
-				() =>
-					pool.acquire("abort-sess2", cwd).prompt("x", { signal: ac2.signal }),
-				(err: Error) => {
-					assert.equal(err.name, "AbortError");
-					return true;
-				},
-			);
+			try {
+				await pool
+					.acquire("abort-sess2", cwd)
+					.prompt("x", { signal: ac2.signal });
+				expect.fail("should have thrown");
+			} catch (err) {
+				expect((err as Error).name).toBe("AbortError");
+			}
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -466,28 +434,25 @@ describe("agy-pool (long-lived)", () => {
 			timeoutMs: 150,
 		});
 		try {
-			await assert.rejects(
-				() =>
-					pool.acquire("to-sess", cwd).prompt("timeout-me", { timeoutMs: 120 }),
-				(err: Error) => {
-					assert.match(err.message, /timed out/i);
-					return true;
-				},
-			);
+			try {
+				await pool
+					.acquire("to-sess", cwd)
+					.prompt("timeout-me", { timeoutMs: 120 });
+				expect.fail("should have thrown");
+			} catch (err) {
+				expect((err as Error).message).toMatch(/timed out/i);
+			}
 			await delay(400);
 			const before = await spawnCount(spawnLog);
 			// next turn with longer timeout should succeed via respawn
 			const r2 = await pool
 				.acquire("to-sess", cwd)
 				.prompt("after-timeout", { timeoutMs: 2000 });
-			assert.equal(r2.stdout, "echo:after-timeout");
+			expect(r2.stdout).toBe("echo:after-timeout");
 			const after = await spawnCount(spawnLog);
-			assert.ok(
-				after >= before,
-				`spawn count should not decrease ${before} -> ${after}`,
-			);
+			expect(after >= before).toBeTruthy();
 			// also verify that new convId differs if respawn happened; at least stdout correct
-			assert.ok(r2.conversationId);
+			expect(r2.conversationId).toBeTruthy();
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -509,22 +474,22 @@ describe("agy-pool (long-lived)", () => {
 		});
 		try {
 			const r1 = await pool.acquire("idle-key", cwd).prompt("first");
-			assert.equal(r1.stdout, "echo:first");
-			assert.equal(pool.size(), 1);
-			assert.equal(await spawnCount(spawnLog), 1);
+			expect(r1.stdout).toBe("echo:first");
+			expect(pool.size()).toBe(1);
+			expect(await spawnCount(spawnLog)).toBe(1);
 			// wait for idle eviction (900ms + buffer)
 			await delay(1350);
-			assert.equal(pool.size(), 0, "idle entry should have been evicted");
+			expect(pool.size()).toBe(0);
 			const before = await spawnCount(spawnLog);
 			const r2 = await pool.acquire("idle-key", cwd).prompt("second");
-			assert.equal(r2.stdout, "echo:second");
+			expect(r2.stdout).toBe("echo:second");
 			// conversationId should differ after eviction+respawn
-			assert.notEqual(r1.conversationId, r2.conversationId);
+			expect(r1.conversationId).not.toBe(r2.conversationId);
 			const after = await spawnCount(spawnLog);
-			assert.equal(after, before + 1);
+			expect(after).toBe(before + 1);
 			// ensure second entry not immediately evicted during test
 			await delay(100);
-			assert.equal(pool.size(), 1);
+			expect(pool.size()).toBe(1);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -546,8 +511,8 @@ describe("agy-pool (long-lived)", () => {
 		try {
 			await pool.acquire("k1", cwd).prompt("hi1");
 			await pool.acquire("k2", cwd).prompt("hi2");
-			assert.equal(pool.size(), 2);
-			assert.equal(await spawnCount(spawnLog), 2);
+			expect(pool.size()).toBe(2);
+			expect(await spawnCount(spawnLog)).toBe(2);
 			await pool.disposeAll();
 			// disposeAll may leave entries marked closed but not yet deleted from map due to close-handler race;
 			// give a tick and check that size is 0 or that entries are closed and next acquire spawns fresh
@@ -555,13 +520,9 @@ describe("agy-pool (long-lived)", () => {
 			// tolerate either 0 or 2 closed entries; verify new prompt still works via respawn
 			const before = await spawnCount(spawnLog);
 			const r = await pool.acquire("k1", cwd).prompt("hi-again");
-			assert.equal(r.stdout, "echo:hi-again");
+			expect(r.stdout).toBe("echo:hi-again");
 			const after = await spawnCount(spawnLog);
-			assert.equal(
-				after,
-				before + 1,
-				"after disposeAll next acquire should respawn",
-			);
+			expect(after).toBe(before + 1);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -600,30 +561,26 @@ describe("agy-pool (long-lived)", () => {
 					if (e.type === "text") deltas.push(e.text);
 				},
 			});
-			assert.deepEqual(
-				deltas,
-				["hello ", "world", "! delta"],
-				"deltas must be forwarded in order",
-			);
-			assert.equal(r.stdout, "hello world! delta");
-			assert.equal(deltas.join(""), r.stdout);
+			expect(deltas).toEqual(["hello ", "world", "! delta"]);
+			expect(r.stdout).toBe("hello world! delta");
+			expect(deltas.join("")).toBe(r.stdout);
 			// ensure conversation event also forwarded
-			assert.ok(
+			expect(
 				events.some(
 					(e: unknown) => (e as { type: string }).type === "conversation",
 				),
-			);
+			).toBeTruthy();
 			// ensure tool events forwarded
-			assert.ok(
+			expect(
 				events.some(
 					(e: unknown) => (e as { type: string }).type === "tool_start",
 				),
-			);
-			assert.ok(
+			).toBeTruthy();
+			expect(
 				events.some(
 					(e: unknown) => (e as { type: string }).type === "tool_end",
 				),
-			);
+			).toBeTruthy();
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -641,24 +598,26 @@ describe("agy-pool (long-lived)", () => {
 			timeoutMs: 1200,
 		});
 		try {
-			await assert.rejects(
-				() => pool.acquire("err-key", cwd).prompt("hi"),
-				(err: Error) => {
-					assert.match(err.message, /failed to spawn agy|ENOENT|spawn/i);
-					return true;
-				},
-			);
+			try {
+				await pool.acquire("err-key", cwd).prompt("hi");
+				expect.fail("should have thrown");
+			} catch (err) {
+				expect((err as Error).message).toMatch(
+					/failed to spawn agy|ENOENT|spawn/i,
+				);
+			}
 			// entry should have been removed
 			await delay(100);
-			assert.equal(pool.size(), 0);
+			expect(pool.size()).toBe(0);
 			// second attempt also fails but doesn't hang
-			await assert.rejects(
-				() => pool.acquire("err-key2", cwd).prompt("hi2"),
-				(err: Error) => {
-					assert.match(err.message, /failed to spawn agy|ENOENT|spawn/i);
-					return true;
-				},
-			);
+			try {
+				await pool.acquire("err-key2", cwd).prompt("hi2");
+				expect.fail("should have thrown");
+			} catch (err) {
+				expect((err as Error).message).toMatch(
+					/failed to spawn agy|ENOENT|spawn/i,
+				);
+			}
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -689,16 +648,15 @@ describe("agy-pool (long-lived)", () => {
 			timeoutMs: 1200,
 		});
 		try {
-			await assert.rejects(
-				() => pool2.acquire("bad-key", cwd2).prompt("hi"),
-				(err: Error) => {
-					// could be exited message or boom
-					assert.match(err.message, /exited|killed|boom/i);
-					return true;
-				},
-			);
+			try {
+				await pool2.acquire("bad-key", cwd2).prompt("hi");
+				expect.fail("should have thrown");
+			} catch (err) {
+				// could be exited message or boom
+				expect((err as Error).message).toMatch(/exited|killed|boom/i);
+			}
 			await delay(100);
-			assert.equal(pool2.size(), 0);
+			expect(pool2.size()).toBe(0);
 		} finally {
 			await pool2.disposeAll().catch(() => {});
 			await rm(root2, { recursive: true, force: true });
@@ -721,33 +679,33 @@ describe("agy-pool (long-lived)", () => {
 			// two logical sessions
 			const rA1 = await pool.acquire("pi-sess-A", cwd).prompt("A1");
 			const rB1 = await pool.acquire("pi-sess-B", cwd).prompt("B1");
-			assert.equal(rA1.stdout, "echo:A1");
-			assert.equal(rB1.stdout, "echo:B1");
-			assert.notEqual(rA1.conversationId, rB1.conversationId);
+			expect(rA1.stdout).toBe("echo:A1");
+			expect(rB1.stdout).toBe("echo:B1");
+			expect(rA1.conversationId).not.toBe(rB1.conversationId);
 			// interleaved concurrent turns
 			const pA2 = pool.acquire("pi-sess-A", cwd).prompt("A2");
 			const pB2 = pool.acquire("pi-sess-B", cwd).prompt("B2");
 			const [rA2, rB2] = await Promise.all([pA2, pB2]);
-			assert.equal(rA2.stdout, "echo:A2");
-			assert.equal(rB2.stdout, "echo:B2");
+			expect(rA2.stdout).toBe("echo:A2");
+			expect(rB2.stdout).toBe("echo:B2");
 			// conversationIds remain sticky per logical session
-			assert.equal(rA2.conversationId, rA1.conversationId);
-			assert.equal(rB2.conversationId, rB1.conversationId);
+			expect(rA2.conversationId).toBe(rA1.conversationId);
+			expect(rB2.conversationId).toBe(rB1.conversationId);
 			// already have pool; just run interleaved again using same wrapper (which already has echoHandler, but we can still test isolation)
 			const pA3 = pool.acquire("pi-sess-A", cwd).prompt("A3");
 			const pB3 = pool.acquire("pi-sess-B", cwd).prompt("B3");
 			const pA4 = pool.acquire("pi-sess-A", cwd).prompt("A4");
 			const pB4 = pool.acquire("pi-sess-B", cwd).prompt("B4");
 			const [rA3, rB3, rA4, rB4] = await Promise.all([pA3, pB3, pA4, pB4]);
-			assert.equal(rA3.stdout, "echo:A3");
-			assert.equal(rB3.stdout, "echo:B3");
-			assert.equal(rA4.stdout, "echo:A4");
-			assert.equal(rB4.stdout, "echo:B4");
+			expect(rA3.stdout).toBe("echo:A3");
+			expect(rB3.stdout).toBe("echo:B3");
+			expect(rA4.stdout).toBe("echo:A4");
+			expect(rB4.stdout).toBe("echo:B4");
 			// verify only 2 processes were ever spawned (one per logical session)
-			assert.equal(await spawnCount(spawnLog), 2);
+			expect(await spawnCount(spawnLog)).toBe(2);
 			const pids = await readSpawnPids(spawnLog);
-			assert.equal(new Set(pids).size, 2);
-			assert.equal(pool.size(), 2);
+			expect(new Set(pids).size).toBe(2);
+			expect(pool.size()).toBe(2);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -770,10 +728,10 @@ describe("agy-pool (long-lived)", () => {
 		try {
 			await pool.acquire("s1", cwd).prompt("1");
 			await pool.acquire("s2", cwd).prompt("2");
-			assert.equal(pool.size(), 2);
+			expect(pool.size()).toBe(2);
 			await pool.acquire("s3", cwd).prompt("3");
-			assert.equal(pool.size(), 2, "maxEntries should cap size");
-			assert.equal(await spawnCount(spawnLog), 3);
+			expect(pool.size()).toBe(2);
+			expect(await spawnCount(spawnLog)).toBe(3);
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });
@@ -794,32 +752,21 @@ describe("agy-pool (long-lived)", () => {
 		});
 		try {
 			const r = await pool.acquire("args-key", cwd).prompt("check-args");
-			assert.equal(r.stdout, "echo:check-args");
+			expect(r.stdout).toBe("echo:check-args");
 			const argsList = await readSpawnArgs(spawnLog);
-			assert.equal(argsList.length, 1, "exactly one spawn");
+			expect(argsList.length).toBe(1);
 			const args = argsList[0];
-			assert.ok(args.includes("--input-format"), "missing --input-format");
-			assert.ok(args.includes("stream-json"), "missing stream-json");
-			assert.ok(args.includes("--output-format"), "missing --output-format");
-			assert.ok(args.includes("--add-dir"), "missing --add-dir");
-			assert.ok(args.includes(cwd), "missing cwd value");
-			assert.ok(
-				args.includes("--dangerously-skip-permissions"),
-				"missing --dangerously-skip-permissions",
-			);
+			expect(args.includes("--input-format")).toBeTruthy();
+			expect(args.includes("stream-json")).toBeTruthy();
+			expect(args.includes("--output-format")).toBeTruthy();
+			expect(args.includes("--add-dir")).toBeTruthy();
+			expect(args.includes(cwd)).toBeTruthy();
+			expect(args.includes("--dangerously-skip-permissions")).toBeTruthy();
 			const inputIdx = args.indexOf("--input-format");
-			assert.equal(
-				args[inputIdx + 1],
-				"stream-json",
-				"--input-format must be stream-json",
-			);
+			expect(args[inputIdx + 1]).toBe("stream-json");
 			const outIdx = args.indexOf("--output-format");
-			assert.equal(
-				args[outIdx + 1],
-				"stream-json",
-				"--output-format must be stream-json",
-			);
-			assert.ok(!args.includes("-p"), "long-lived pool must not use -p");
+			expect(args[outIdx + 1]).toBe("stream-json");
+			expect(!args.includes("-p")).toBeTruthy();
 		} finally {
 			await pool.disposeAll().catch(() => {});
 			await rm(root, { recursive: true, force: true });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import {
 	buildThinkingLevelMap,
 	discoverModels,
@@ -21,42 +20,41 @@ describe("resolveAgyModelId", () => {
 			defaultVariant: "high",
 			variants: ["high", "medium", "low"],
 		};
-		assert.deepEqual(resolveAgyModelId("gemini-3.7-flash", "low", meta), {
+		expect(resolveAgyModelId("gemini-3.7-flash", "low", meta)).toEqual({
 			model: "gemini-3.7-flash-low",
 		});
-		assert.deepEqual(resolveAgyModelId("gemini-3.7-flash", "medium", meta), {
+		expect(resolveAgyModelId("gemini-3.7-flash", "medium", meta)).toEqual({
 			model: "gemini-3.7-flash-medium",
 		});
-		assert.deepEqual(resolveAgyModelId("gemini-3.7-flash", undefined, meta), {
+		expect(resolveAgyModelId("gemini-3.7-flash", undefined, meta)).toEqual({
 			model: "gemini-3.7-flash-high",
 		});
 	});
 
 	it("passes through models without variants", () => {
-		assert.deepEqual(
+		expect(
 			resolveAgyModelId("claude-sonnet-4-6", "high", { variants: [] }),
-			{ model: "claude-sonnet-4-6" },
-		);
+		).toEqual({ model: "claude-sonnet-4-6" });
 	});
 });
 
 describe("toPiModels", () => {
 	it("marks variant models as reasoning with low/medium/high only", () => {
 		const { models, meta } = toPiModels(SAMPLE);
-		assert.equal(models.length, 1);
-		const flash = models[0]!;
-		assert.equal(flash.id, "gemini-3.7-flash");
-		assert.equal(flash.reasoning, true);
-		assert.equal(flash.thinkingLevelMap?.low, "low");
-		assert.equal(flash.thinkingLevelMap?.medium, "medium");
-		assert.equal(flash.thinkingLevelMap?.high, "high");
-		assert.equal(flash.thinkingLevelMap?.xhigh, null);
-		assert.equal(flash.thinkingLevelMap?.max, null);
-		assert.equal(meta.get("gemini-3.7-flash")?.defaultVariant, "high");
+		expect(models.length).toBe(1);
+		const flash = models[0] as NonNullable<(typeof models)[number]>;
+		expect(flash.id).toBe("gemini-3.7-flash");
+		expect(flash.reasoning).toBe(true);
+		expect(flash.thinkingLevelMap?.low).toBe("low");
+		expect(flash.thinkingLevelMap?.medium).toBe("medium");
+		expect(flash.thinkingLevelMap?.high).toBe("high");
+		expect(flash.thinkingLevelMap?.xhigh).toBe(null);
+		expect(flash.thinkingLevelMap?.max).toBe(null);
+		expect(meta.get("gemini-3.7-flash")?.defaultVariant).toBe("high");
 	});
 
 	it("returns empty catalog by default", () => {
-		assert.equal(toPiModels().models.length, 0);
+		expect(toPiModels().models.length).toBe(0);
 	});
 });
 
@@ -65,28 +63,28 @@ describe("discoverModels", () => {
 		const result = await discoverModels({
 			configPath: "/tmp/pi-agent-bridge-no-models.json",
 		});
-		assert.equal(result.models.length, 0);
+		expect(result.models.length).toBe(0);
 	});
 });
 
 describe("buildThinkingLevelMap", () => {
 	it("maps only suffixes that match pi level names", () => {
 		const map = buildThinkingLevelMap(["high", "low"]);
-		assert.equal(map.off, null);
-		assert.equal(map.minimal, null);
-		assert.equal(map.low, "low");
-		assert.equal(map.medium, null);
-		assert.equal(map.high, "high");
-		assert.equal(map.xhigh, null);
-		assert.equal(map.max, null);
+		expect(map.off).toBe(null);
+		expect(map.minimal).toBe(null);
+		expect(map.low).toBe("low");
+		expect(map.medium).toBe(null);
+		expect(map.high).toBe("high");
+		expect(map.xhigh).toBe(null);
+		expect(map.max).toBe(null);
 	});
 
 	it("exposes low/medium/high when all three exist", () => {
 		const map = buildThinkingLevelMap(["high", "medium", "low"]);
-		assert.equal(map.low, "low");
-		assert.equal(map.medium, "medium");
-		assert.equal(map.high, "high");
-		assert.equal(map.xhigh, null);
-		assert.equal(map.max, null);
+		expect(map.low).toBe("low");
+		expect(map.medium).toBe("medium");
+		expect(map.high).toBe("high");
+		expect(map.xhigh).toBe(null);
+		expect(map.max).toBe(null);
 	});
 });

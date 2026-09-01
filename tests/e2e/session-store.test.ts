@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { SessionStore } from "../../src/agy/session-store.ts";
 import { createE2EEnv, destroyE2EEnv } from "./helpers.ts";
 
@@ -11,7 +10,7 @@ describe("e2e/session-store", () => {
 			await a.set("s1", "conv-1", "prev");
 			const b = new SessionStore(env.stateFile, env.bindingLockFile);
 			const entry = await b.getEntry("s1");
-			assert.deepEqual(entry, { conversationId: "conv-1", prevOutput: "prev" });
+			expect(entry).toEqual({ conversationId: "conv-1", prevOutput: "prev" });
 		} finally {
 			await destroyE2EEnv(env);
 		}
@@ -28,13 +27,13 @@ describe("e2e/session-store", () => {
 			);
 			for (let i = 0; i < 20; i++) {
 				const entry = await store.getEntry(`s-${i}`);
-				assert.equal(entry?.conversationId, `c-${i}`);
-				assert.equal(entry?.prevOutput, `out-${i}`);
+				expect(entry?.conversationId).toBe(`c-${i}`);
+				expect(entry?.prevOutput).toBe(`out-${i}`);
 			}
 		} finally {
 			await destroyE2EEnv(env);
 		}
-	});
+	}, 10000);
 
 	it("binding lock is exclusive", async () => {
 		const env = await createE2EEnv();
@@ -51,14 +50,14 @@ describe("e2e/session-store", () => {
 				.catch((err: Error) => err);
 
 			await new Promise((r) => setTimeout(r, 50));
-			assert.equal(secondAcquired, false);
+			expect(secondAcquired).toBe(false);
 			await release();
 			const result = await waiter;
 			// either timed out or acquired after release
 			if (result instanceof Error) {
-				assert.equal(result.name, "TimeoutError");
+				expect(result.name).toBe("TimeoutError");
 			} else {
-				assert.equal(secondAcquired, true);
+				expect(secondAcquired).toBe(true);
 			}
 		} finally {
 			await destroyE2EEnv(env);

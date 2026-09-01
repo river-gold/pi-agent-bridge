@@ -1,10 +1,9 @@
-import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -86,11 +85,11 @@ describe("e2e/pi-cli", () => {
 				45_000,
 			);
 
-			const out = result.stdout + "\n" + result.stderr;
-			assert.equal(result.code, 0, out);
-			assert.match(out, /\bantigravity\b/);
-			assert.match(out, /gemini-3\.7-flash/);
-			assert.doesNotMatch(out, /claude-sonnet-4-6/);
+			const out = `${result.stdout}\n${result.stderr}`;
+			expect(result.code).toBe(0);
+			expect(out).toMatch(/\bantigravity\b/);
+			expect(out).toMatch(/gemini-3\.7-flash/);
+			expect(out).not.toMatch(/claude-sonnet-4-6/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -1,18 +1,17 @@
-import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, it } from "node:test";
 import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
 import { discoverModels as discoverAgy } from "../src/agy/agy-models.ts";
 import {
 	defaultModelsConfigPath,
 	loadModelsConfigFile,
+	type ModelsConfigFile,
 	parseModelsConfig,
 	resolveAgentCatalog,
 	resolveModelsConfigPath,
-	type ModelsConfigFile,
 } from "../src/shared/models-config.ts";
 
 const execFileAsync = promisify(execFile);
@@ -73,7 +72,7 @@ try {
 function assertLoaded(
 	result: ChildLoadResult,
 ): asserts result is Extract<ChildLoadResult, { ok: true }> {
-	assert.equal(result.ok, true, result.ok ? undefined : result.message);
+	expect(result.ok).toBe(true);
 }
 
 describe("models-config", () => {
@@ -90,13 +89,12 @@ describe("models-config", () => {
 				"agent",
 				"pi-agent-bridge.jsonc",
 			);
-			assert.equal(defaultModelsConfigPath(), cwdDefault);
-			assert.equal(resolveModelsConfigPath(), cwdDefault);
-			assert.equal(resolveModelsConfigPath("/tmp/x.json"), "/tmp/x.json");
+			expect(defaultModelsConfigPath()).toBe(cwdDefault);
+			expect(resolveModelsConfigPath()).toBe(cwdDefault);
+			expect(resolveModelsConfigPath("/tmp/x.json")).toBe("/tmp/x.json");
 			process.env.PI_AGENT_BRIDGE_CONFIG = "/tmp/env.json";
-			assert.equal(resolveModelsConfigPath(), "/tmp/env.json");
-			assert.equal(
-				resolveModelsConfigPath("/tmp/override.json"),
+			expect(resolveModelsConfigPath()).toBe("/tmp/env.json");
+			expect(resolveModelsConfigPath("/tmp/override.json")).toBe(
 				"/tmp/override.json",
 			);
 		} finally {
@@ -137,8 +135,8 @@ describe("models-config", () => {
 				envPath,
 			});
 			assertLoaded(explicit);
-			assert.equal(explicit.loaded.path, explicitPath);
-			assert.deepEqual(Object.keys(explicit.loaded.config.agy?.models ?? {}), [
+			expect(explicit.loaded.path).toBe(explicitPath);
+			expect(Object.keys(explicit.loaded.config.agy?.models ?? {})).toEqual([
 				"explicit",
 			]);
 
@@ -150,7 +148,7 @@ describe("models-config", () => {
 				envPath,
 			});
 			assertLoaded(explicitMissing);
-			assert.deepEqual(explicitMissing.loaded, {
+			expect(explicitMissing.loaded).toEqual({
 				path: missingExplicit,
 				config: {},
 				exists: false,
@@ -162,8 +160,8 @@ describe("models-config", () => {
 				envPath,
 			});
 			assertLoaded(fromEnv);
-			assert.equal(fromEnv.loaded.path, envPath);
-			assert.deepEqual(Object.keys(fromEnv.loaded.config.agy?.models ?? {}), [
+			expect(fromEnv.loaded.path).toBe(envPath);
+			expect(Object.keys(fromEnv.loaded.config.agy?.models ?? {})).toEqual([
 				"env",
 			]);
 
@@ -174,7 +172,7 @@ describe("models-config", () => {
 				envPath: missingEnv,
 			});
 			assertLoaded(envMissing);
-			assert.deepEqual(envMissing.loaded, {
+			expect(envMissing.loaded).toEqual({
 				path: missingEnv,
 				config: {},
 				exists: false,
@@ -182,11 +180,10 @@ describe("models-config", () => {
 
 			const fromProject = await loadModelsConfigInChild({ cwd: project, home });
 			assertLoaded(fromProject);
-			assert.equal(fromProject.loaded.path, projectPath);
-			assert.deepEqual(
-				Object.keys(fromProject.loaded.config.agy?.models ?? {}),
-				["project"],
-			);
+			expect(fromProject.loaded.path).toBe(projectPath);
+			expect(Object.keys(fromProject.loaded.config.agy?.models ?? {})).toEqual([
+				"project",
+			]);
 
 			await writeFile(projectPath, "{}", "utf-8");
 			const emptyProject = await loadModelsConfigInChild({
@@ -194,7 +191,7 @@ describe("models-config", () => {
 				home,
 			});
 			assertLoaded(emptyProject);
-			assert.deepEqual(emptyProject.loaded, {
+			expect(emptyProject.loaded).toEqual({
 				path: projectPath,
 				config: {},
 				exists: true,
@@ -203,15 +200,15 @@ describe("models-config", () => {
 			await rm(projectPath);
 			const fromHome = await loadModelsConfigInChild({ cwd: project, home });
 			assertLoaded(fromHome);
-			assert.equal(fromHome.loaded.path, homePath);
-			assert.deepEqual(Object.keys(fromHome.loaded.config.agy?.models ?? {}), [
+			expect(fromHome.loaded.path).toBe(homePath);
+			expect(Object.keys(fromHome.loaded.config.agy?.models ?? {})).toEqual([
 				"home",
 			]);
 
 			await rm(homePath);
 			const bothMissing = await loadModelsConfigInChild({ cwd: project, home });
 			assertLoaded(bothMissing);
-			assert.deepEqual(bothMissing.loaded, {
+			expect(bothMissing.loaded).toEqual({
 				path: projectPath,
 				config: {},
 				exists: false,
@@ -234,18 +231,18 @@ describe("models-config", () => {
 			await writeFile(projectPath, "{ malformed", "utf-8");
 
 			const malformed = await loadModelsConfigInChild({ cwd: project, home });
-			assert.equal(malformed.ok, false);
+			expect(malformed.ok).toBe(false);
 			if (malformed.ok)
-				assert.fail("expected malformed project config to fail");
-			assert.match(malformed.message, /Invalid JSONC in models config/);
-			assert.ok(malformed.message.includes(projectPath));
+				expect.fail("expected malformed project config to fail");
+			expect(malformed.message).toMatch(/Invalid JSONC in models config/);
+			expect(malformed.message.includes(projectPath)).toBeTruthy();
 
 			await rm(projectPath);
 			await mkdir(projectPath);
 			const readError = await loadModelsConfigInChild({ cwd: project, home });
-			assert.equal(readError.ok, false);
-			if (readError.ok) assert.fail("expected project read error to fail");
-			assert.equal(readError.code, "EISDIR");
+			expect(readError.ok).toBe(false);
+			if (readError.ok) expect.fail("expected project read error to fail");
+			expect(readError.code).toBe("EISDIR");
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -261,15 +258,15 @@ describe("models-config", () => {
 			});
 			const present = await loadModelsConfigInChild({ cwd: root, home: root });
 			assertLoaded(present);
-			assert.equal(present.loaded.path, path);
-			assert.deepEqual(Object.keys(present.loaded.config.agy?.models ?? {}), [
+			expect(present.loaded.path).toBe(path);
+			expect(Object.keys(present.loaded.config.agy?.models ?? {})).toEqual([
 				"same",
 			]);
 
 			await rm(path);
 			const missing = await loadModelsConfigInChild({ cwd: root, home: root });
 			assertLoaded(missing);
-			assert.deepEqual(missing.loaded, { path, config: {}, exists: false });
+			expect(missing.loaded).toEqual({ path, config: {}, exists: false });
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -284,16 +281,16 @@ describe("models-config", () => {
 			},
 			ignored: { models: { x: {} } },
 		});
-		assert.deepEqual(Object.keys(cfg.agy?.models ?? {}), ["m1"]);
-		assert.equal(cfg.agy?.models?.m1?.defaultVariant, "high");
-		assert.equal((cfg as Record<string, unknown>).ignored, undefined);
+		expect(Object.keys(cfg.agy?.models ?? {})).toEqual(["m1"]);
+		expect(cfg.agy?.models?.m1?.defaultVariant).toBe("high");
+		expect((cfg as Record<string, unknown>).ignored).toBe(undefined);
 	});
 
 	it("resolveAgentCatalog returns empty when section missing", () => {
 		const out = resolveAgentCatalog("agy", {}, (id, e) => ({
 			name: e.name ?? id,
 		}));
-		assert.deepEqual(out, {});
+		expect(out).toEqual({});
 	});
 
 	it("resolveAgentCatalog maps section models", () => {
@@ -302,7 +299,7 @@ describe("models-config", () => {
 			{ agy: { models: { b: { name: "B" } } } },
 			(id, e) => ({ name: e.name ?? id }),
 		);
-		assert.deepEqual(out, { b: { name: "B" } });
+		expect(out).toEqual({ b: { name: "B" } });
 	});
 
 	it("loadModelsConfigFile + discoverModels honor config file", async () => {
@@ -326,13 +323,10 @@ describe("models-config", () => {
 			);
 
 			const loaded = await loadModelsConfigFile(path);
-			assert.equal(loaded.exists, true);
+			expect(loaded.exists).toBe(true);
 
 			const agy = await discoverAgy({ configPath: path });
-			assert.deepEqual(
-				agy.models.map((m) => m.id),
-				["custom-agy"],
-			);
+			expect(agy.models.map((m) => m.id)).toEqual(["custom-agy"]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -362,13 +356,10 @@ describe("models-config", () => {
 			);
 
 			const loaded = await loadModelsConfigFile(path);
-			assert.equal(loaded.exists, true);
-			assert.equal(loaded.config.agy?.models?.["jsonc-agy"]?.name, "JSONC Agy");
+			expect(loaded.exists).toBe(true);
+			expect(loaded.config.agy?.models?.["jsonc-agy"]?.name).toBe("JSONC Agy");
 			const agy = await discoverAgy({ configPath: path });
-			assert.deepEqual(
-				agy.models.map((model) => model.id),
-				["jsonc-agy"],
-			);
+			expect(agy.models.map((model) => model.id)).toEqual(["jsonc-agy"]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -379,20 +370,24 @@ describe("models-config", () => {
 		const path = join(dir, "pi-agent-bridge.jsonc");
 		try {
 			await writeFile(path, '{\n  "agy": { "models": {, }, },\n}\n', "utf-8");
-			await assert.rejects(loadModelsConfigFile(path), (error: unknown) => {
-				assert.ok(error instanceof Error);
-				assert.match(error.message, /Invalid JSONC in models config/);
-				assert.ok(error.message.includes(path));
-				return true;
-			});
+			try {
+				await loadModelsConfigFile(path);
+				expect.fail("should have thrown");
+			} catch (error) {
+				expect(error instanceof Error).toBeTruthy();
+				expect((error as Error).message).toMatch(
+					/Invalid JSONC in models config/,
+				);
+				expect((error as Error).message.includes(path)).toBeTruthy();
+			}
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
 
 	it("missing config file yields empty catalogs", async () => {
-		const missing = join(tmpdir(), "pi-models-missing-" + Date.now() + ".json");
+		const missing = join(tmpdir(), `pi-models-missing-${Date.now()}.json`);
 		const agy = await discoverAgy({ configPath: missing });
-		assert.equal(agy.models.length, 0);
+		expect(agy.models.length).toBe(0);
 	});
 });

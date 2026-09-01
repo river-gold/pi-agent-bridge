@@ -25,9 +25,9 @@
 		]
 	},
 	"scripts": {
-		"test": "node --experimental-strip-types --test --test-force-exit 'tests/**/*.test.ts'",
-		"test:unit": "node --experimental-strip-types --test --test-force-exit 'tests/*.test.ts'",
-		"test:e2e": "node --experimental-strip-types --test --test-force-exit 'tests/e2e/**/*.test.ts'",
+		"test": "vitest run",
+		"test:unit": "vitest run tests/*.test.ts",
+		"test:e2e": "vitest run tests/e2e",
 		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
