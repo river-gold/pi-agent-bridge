@@ -2,3 +2,4 @@
 node_modules
 .qlty
 .DS_Store
+coverage
