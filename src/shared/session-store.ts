@@ -1,288 +1,318 @@
-import { open, readFile, rename, mkdir, stat, unlink, writeFile } from "node:fs/promises";
+import {
+	open,
+	readFile,
+	rename,
+	mkdir,
+	stat,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
 interface StoreEntry {
-  conversationId: string | null;
-  prevOutput: string;
+	conversationId: string | null;
+	prevOutput: string;
 }
 
 interface StoreFile {
-  sessions: Record<string, StoreEntry>;
+	sessions: Record<string, StoreEntry>;
 }
 
 interface LockPayload {
-  token: string;
-  pid: number;
+	token: string;
+	pid: number;
 }
 
 interface LockIdentity {
-  token: string;
-  dev: number;
-  ino: number;
+	token: string;
+	dev: number;
+	ino: number;
 }
 
 export interface AcquireLockOptions {
-  staleTimeoutMs?: number;
-  isAlive?: (pid: number) => boolean;
-  abortSignal?: AbortSignal;
-  timeoutMs?: number;
+	staleTimeoutMs?: number;
+	isAlive?: (pid: number) => boolean;
+	abortSignal?: AbortSignal;
+	timeoutMs?: number;
 }
 
 const DEFAULT_STALE_TIMEOUT_MS = 30_000;
 const MAX_LOCK_ATTEMPTS = 10_000;
 
 function abortError(signal: AbortSignal): Error {
-  const reason = signal.reason;
-  const error = new Error(reason instanceof Error ? reason.message : "The operation was aborted");
-  error.name = "AbortError";
-  if (reason instanceof Error && reason.stack) error.stack = reason.stack;
-  return error;
+	const reason = signal.reason;
+	const error = new Error(
+		reason instanceof Error ? reason.message : "The operation was aborted",
+	);
+	error.name = "AbortError";
+	if (reason instanceof Error && reason.stack) error.stack = reason.stack;
+	return error;
 }
 
 function timeoutError(): Error {
-  const error = new Error("Timed out acquiring lock");
-  error.name = "TimeoutError";
-  return error;
+	const error = new Error("Timed out acquiring lock");
+	error.name = "TimeoutError";
+	return error;
 }
 
-function throwIfCancelled(signal: AbortSignal | undefined, deadline: number | undefined): void {
-  if (signal?.aborted) throw abortError(signal);
-  if (deadline !== undefined && Date.now() >= deadline) throw timeoutError();
+function throwIfCancelled(
+	signal: AbortSignal | undefined,
+	deadline: number | undefined,
+): void {
+	if (signal?.aborted) throw abortError(signal);
+	if (deadline !== undefined && Date.now() >= deadline) throw timeoutError();
 }
 
 function sleep(
-  ms: number,
-  signal: AbortSignal | undefined,
-  deadline: number | undefined,
+	ms: number,
+	signal: AbortSignal | undefined,
+	deadline: number | undefined,
 ): Promise<void> {
-  const delay = deadline === undefined ? ms : Math.min(ms, Math.max(0, deadline - Date.now()));
-  return new Promise((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const cleanup = () => {
-      if (timer !== undefined) clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
-    };
-    const onAbort = () => {
-      cleanup();
-      reject(abortError(signal!));
-    };
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-    timer = setTimeout(() => {
-      cleanup();
-      if (deadline !== undefined && Date.now() >= deadline) reject(timeoutError());
-      else resolve();
-    }, delay);
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
+	const delay =
+		deadline === undefined
+			? ms
+			: Math.min(ms, Math.max(0, deadline - Date.now()));
+	return new Promise((resolve, reject) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const cleanup = () => {
+			if (timer !== undefined) clearTimeout(timer);
+			signal?.removeEventListener("abort", onAbort);
+		};
+		const onAbort = () => {
+			cleanup();
+			reject(abortError(signal!));
+		};
+		if (signal?.aborted) {
+			onAbort();
+			return;
+		}
+		timer = setTimeout(() => {
+			cleanup();
+			if (deadline !== undefined && Date.now() >= deadline)
+				reject(timeoutError());
+			else resolve();
+		}, delay);
+		signal?.addEventListener("abort", onAbort, { once: true });
+	});
 }
 
 function errCode(error: unknown): string | undefined {
-  if (error && typeof error === "object" && "code" in error) {
-    const code = (error as { code: unknown }).code;
-    return typeof code === "string" ? code : undefined;
-  }
-  return undefined;
+	if (error && typeof error === "object" && "code" in error) {
+		const code = (error as { code: unknown }).code;
+		return typeof code === "string" ? code : undefined;
+	}
+	return undefined;
 }
 
 function defaultIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return errCode(error) === "EPERM";
-  }
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return errCode(error) === "EPERM";
+	}
 }
 
 function parseLock(raw: string): LockPayload | null {
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      typeof (parsed as LockPayload).token === "string" &&
-      typeof (parsed as LockPayload).pid === "number"
-    ) {
-      return parsed as LockPayload;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		if (
+			parsed &&
+			typeof parsed === "object" &&
+			typeof (parsed as LockPayload).token === "string" &&
+			typeof (parsed as LockPayload).pid === "number"
+		) {
+			return parsed as LockPayload;
+		}
+		return null;
+	} catch {
+		return null;
+	}
 }
 
-async function createLockFile(lockPath: string, token: string): Promise<LockIdentity | "exists"> {
-  let fh: FileHandle;
-  try {
-    fh = await open(lockPath, "wx");
-  } catch (error) {
-    if (errCode(error) === "EEXIST") return "exists";
-    throw error;
-  }
-  try {
-    await fh.writeFile(JSON.stringify({ token, pid: process.pid }));
-    const info = await fh.stat();
-    await fh.close().catch(() => {});
-    return { token, dev: info.dev, ino: info.ino };
-  } catch (error) {
-    await unlink(lockPath).catch(() => {});
-    await fh.close().catch(() => {});
-    throw error;
-  }
+async function createLockFile(
+	lockPath: string,
+	token: string,
+): Promise<LockIdentity | "exists"> {
+	let fh: FileHandle;
+	try {
+		fh = await open(lockPath, "wx");
+	} catch (error) {
+		if (errCode(error) === "EEXIST") return "exists";
+		throw error;
+	}
+	try {
+		await fh.writeFile(JSON.stringify({ token, pid: process.pid }));
+		const info = await fh.stat();
+		await fh.close().catch(() => {});
+		return { token, dev: info.dev, ino: info.ino };
+	} catch (error) {
+		await unlink(lockPath).catch(() => {});
+		await fh.close().catch(() => {});
+		throw error;
+	}
 }
 
 async function maybeStealStaleLock(
-  lockPath: string,
-  staleTimeoutMs: number,
-  isAlive: (pid: number) => boolean,
+	lockPath: string,
+	staleTimeoutMs: number,
+	isAlive: (pid: number) => boolean,
 ): Promise<void> {
-  try {
-    const parsed = parseLock(await readFile(lockPath, "utf-8"));
-    if (parsed) {
-      if (!isAlive(parsed.pid)) await unlink(lockPath);
-      return;
-    }
-    const stats = await stat(lockPath);
-    if (Date.now() - stats.mtimeMs >= staleTimeoutMs) await unlink(lockPath);
-  } catch {
-    return;
-  }
+	try {
+		const parsed = parseLock(await readFile(lockPath, "utf-8"));
+		if (parsed) {
+			if (!isAlive(parsed.pid)) await unlink(lockPath);
+			return;
+		}
+		const stats = await stat(lockPath);
+		if (Date.now() - stats.mtimeMs >= staleTimeoutMs) await unlink(lockPath);
+	} catch {
+		return;
+	}
 }
 
-function releaseLock(lockPath: string, identity: LockIdentity): () => Promise<void> {
-  return async () => {
-    try {
-      const pathStat = await stat(lockPath);
-      if (pathStat.dev !== identity.dev || pathStat.ino !== identity.ino) return;
-      const current = parseLock(await readFile(lockPath, "utf-8"));
-      if (!current || current.token !== identity.token) return;
-      await unlink(lockPath);
-    } catch {
-      return;
-    }
-  };
+function releaseLock(
+	lockPath: string,
+	identity: LockIdentity,
+): () => Promise<void> {
+	return async () => {
+		try {
+			const pathStat = await stat(lockPath);
+			if (pathStat.dev !== identity.dev || pathStat.ino !== identity.ino)
+				return;
+			const current = parseLock(await readFile(lockPath, "utf-8"));
+			if (!current || current.token !== identity.token) return;
+			await unlink(lockPath);
+		} catch {
+			return;
+		}
+	};
 }
 
 export async function tryAcquireLock(
-  lockPath: string,
-  options: AcquireLockOptions = {},
+	lockPath: string,
+	options: AcquireLockOptions = {},
 ): Promise<(() => Promise<void>) | null> {
-  const staleTimeoutMs = options.staleTimeoutMs ?? DEFAULT_STALE_TIMEOUT_MS;
-  const isAlive = options.isAlive ?? defaultIsAlive;
-  const token = randomUUID();
+	const staleTimeoutMs = options.staleTimeoutMs ?? DEFAULT_STALE_TIMEOUT_MS;
+	const isAlive = options.isAlive ?? defaultIsAlive;
+	const token = randomUUID();
 
-  await mkdir(dirname(lockPath), { recursive: true });
+	await mkdir(dirname(lockPath), { recursive: true });
 
-  const first = await createLockFile(lockPath, token);
-  if (first !== "exists") return releaseLock(lockPath, first);
+	const first = await createLockFile(lockPath, token);
+	if (first !== "exists") return releaseLock(lockPath, first);
 
-  await maybeStealStaleLock(lockPath, staleTimeoutMs, isAlive);
+	await maybeStealStaleLock(lockPath, staleTimeoutMs, isAlive);
 
-  const second = await createLockFile(lockPath, token);
-  if (second === "exists") return null;
-  return releaseLock(lockPath, second);
+	const second = await createLockFile(lockPath, token);
+	if (second === "exists") return null;
+	return releaseLock(lockPath, second);
 }
 
 async function acquireLock(
-  lockPath: string,
-  options: AcquireLockOptions = {},
+	lockPath: string,
+	options: AcquireLockOptions = {},
 ): Promise<() => Promise<void>> {
-  let backoff = 1;
-  const maxBackoff = 500;
-  const deadline = options.timeoutMs === undefined ? undefined : Date.now() + options.timeoutMs;
+	let backoff = 1;
+	const maxBackoff = 500;
+	const deadline =
+		options.timeoutMs === undefined
+			? undefined
+			: Date.now() + options.timeoutMs;
 
-  for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
-    throwIfCancelled(options.abortSignal, deadline);
-    const got = await tryAcquireLock(lockPath, options);
-    if (got) {
-      try {
-        throwIfCancelled(options.abortSignal, deadline);
-      } catch (error) {
-        await got();
-        throw error;
-      }
-      return got;
-    }
-    await sleep(backoff, options.abortSignal, deadline);
-    backoff = Math.min(backoff * 2, maxBackoff);
-  }
+	for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
+		throwIfCancelled(options.abortSignal, deadline);
+		const got = await tryAcquireLock(lockPath, options);
+		if (got) {
+			try {
+				throwIfCancelled(options.abortSignal, deadline);
+			} catch (error) {
+				await got();
+				throw error;
+			}
+			return got;
+		}
+		await sleep(backoff, options.abortSignal, deadline);
+		backoff = Math.min(backoff * 2, maxBackoff);
+	}
 
-  throw timeoutError();
+	throw timeoutError();
 }
 
 export class SessionStore {
-  private stateFile: string;
-  private bindingLockFile: string;
+	private stateFile: string;
+	private bindingLockFile: string;
 
-  constructor(stateFile: string, bindingLockFile: string) {
-    this.stateFile = stateFile;
-    this.bindingLockFile = bindingLockFile;
-  }
+	constructor(stateFile: string, bindingLockFile: string) {
+		this.stateFile = stateFile;
+		this.bindingLockFile = bindingLockFile;
+	}
 
-  acquireBindingLock(options: AcquireLockOptions = {}): Promise<() => Promise<void>> {
-    return acquireLock(this.bindingLockFile, options);
-  }
+	acquireBindingLock(
+		options: AcquireLockOptions = {},
+	): Promise<() => Promise<void>> {
+		return acquireLock(this.bindingLockFile, options);
+	}
 
-  async getEntry(sessionId: string): Promise<StoreEntry | null> {
-    const store = await this.loadStore();
-    return store.sessions[sessionId] ?? null;
-  }
+	async getEntry(sessionId: string): Promise<StoreEntry | null> {
+		const store = await this.loadStore();
+		return store.sessions[sessionId] ?? null;
+	}
 
-  async set(
-    sessionId: string,
-    conversationId: string | null,
-    prevOutput: string = "",
-  ): Promise<void> {
-    await mkdir(dirname(this.stateFile), { recursive: true });
-    const lockPath = this.stateFile + ".lock";
-    const release = await acquireLock(lockPath);
-    try {
-      const store = await this.loadStoreUnlocked();
-      store.sessions[sessionId] = { conversationId, prevOutput };
-      const tmpPath = this.stateFile + ".tmp";
-      await writeFile(tmpPath, JSON.stringify(store, null, 2), "utf-8");
-      await rename(tmpPath, this.stateFile);
-    } finally {
-      await release();
-    }
-  }
+	async set(
+		sessionId: string,
+		conversationId: string | null,
+		prevOutput: string = "",
+	): Promise<void> {
+		await mkdir(dirname(this.stateFile), { recursive: true });
+		const lockPath = this.stateFile + ".lock";
+		const release = await acquireLock(lockPath);
+		try {
+			const store = await this.loadStoreUnlocked();
+			store.sessions[sessionId] = { conversationId, prevOutput };
+			const tmpPath = this.stateFile + ".tmp";
+			await writeFile(tmpPath, JSON.stringify(store, null, 2), "utf-8");
+			await rename(tmpPath, this.stateFile);
+		} finally {
+			await release();
+		}
+	}
 
-  private async loadStore(): Promise<StoreFile> {
-    await mkdir(dirname(this.stateFile), { recursive: true });
-    const lockPath = this.stateFile + ".lock";
-    const release = await acquireLock(lockPath);
-    try {
-      return await this.loadStoreUnlocked();
-    } finally {
-      await release();
-    }
-  }
+	private async loadStore(): Promise<StoreFile> {
+		await mkdir(dirname(this.stateFile), { recursive: true });
+		const lockPath = this.stateFile + ".lock";
+		const release = await acquireLock(lockPath);
+		try {
+			return await this.loadStoreUnlocked();
+		} finally {
+			await release();
+		}
+	}
 
-  private async loadStoreUnlocked(): Promise<StoreFile> {
-    let raw: string;
-    try {
-      raw = await readFile(this.stateFile, "utf-8");
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return { sessions: {} };
-      throw err;
-    }
+	private async loadStoreUnlocked(): Promise<StoreFile> {
+		let raw: string;
+		try {
+			raw = await readFile(this.stateFile, "utf-8");
+		} catch (err: unknown) {
+			if ((err as NodeJS.ErrnoException).code === "ENOENT")
+				return { sessions: {} };
+			throw err;
+		}
 
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed) ||
-      typeof (parsed as { sessions?: unknown }).sessions !== "object" ||
-      (parsed as { sessions?: unknown }).sessions === null ||
-      Array.isArray((parsed as { sessions?: unknown }).sessions)
-    ) {
-      throw new Error("Invalid session store state format");
-    }
+		const parsed = JSON.parse(raw) as unknown;
+		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
+			Array.isArray(parsed) ||
+			typeof (parsed as { sessions?: unknown }).sessions !== "object" ||
+			(parsed as { sessions?: unknown }).sessions === null ||
+			Array.isArray((parsed as { sessions?: unknown }).sessions)
+		) {
+			throw new Error("Invalid session store state format");
+		}
 
-    return { sessions: (parsed as StoreFile).sessions };
-  }
+		return { sessions: (parsed as StoreFile).sessions };
+	}
 }

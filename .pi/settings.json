@@ -1,4 +1,4 @@
 {
-  "defaultProvider": "router",
-  "defaultModel": "opencode"
+	"defaultProvider": "router",
+	"defaultModel": "opencode"
 }
