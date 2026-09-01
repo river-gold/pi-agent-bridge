@@ -8,8 +8,6 @@ import {
 const AGY_API = "openai-completions";
 const AGY_PROVIDER = "antigravity";
 const AGY_BASE_URL = "pi-agent-bridge://antigravity";
-// Keep old constants for migration fallback
-const LEGACY_AGY_PROVIDER = "agy";
 
 export interface DiscoveredAgyModel {
 	name: string;

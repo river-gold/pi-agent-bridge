@@ -1,8 +1,7 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, type AgyConfig } from "../../src/agy/config.ts";
-import { SessionStore } from "../../src/agy/session-store.ts";
+import { type AgyConfig, loadConfig } from "../../src/agy/config.ts";
 
 export interface E2EEnv {
 	root: string;

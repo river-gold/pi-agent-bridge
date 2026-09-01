@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import {
 	chmod,
 	mkdir,
@@ -10,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, it } from "node:test";
 import { AgyPool, compositeKey, hashCwd } from "../src/agy/agy-pool.ts";
 
 /** helper: delay */
@@ -109,13 +109,6 @@ const echoHandler = `
   // also support explicit delay marker "delay:<ms>"
   const m = prompt.match(/delay:(\\d+)/);
   if (m) await new Promise(r=>setTimeout(r, Number(m[1])));
-  console.log(JSON.stringify({ event: "step_update", step_update: { step_type: "agent_response", text_delta: "echo:"+prompt, state: "DONE", conversation_id: convId } }));
-  console.log(JSON.stringify({ event: "result", result: { status: "SUCCESS", response: "echo:"+prompt, usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3 }, conversation_id: convId } }));
-`;
-
-const echoChunksHandler = `
-  const d = prompt.includes("slow") ? 180 : 0;
-  if (d) await new Promise(r=>setTimeout(r,d));
   console.log(JSON.stringify({ event: "step_update", step_update: { step_type: "agent_response", text_delta: "echo:"+prompt, state: "DONE", conversation_id: convId } }));
   console.log(JSON.stringify({ event: "result", result: { status: "SUCCESS", response: "echo:"+prompt, usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3 }, conversation_id: convId } }));
 `;
@@ -357,7 +350,11 @@ describe("agy-pool (long-lived)", () => {
 			assert.equal(await spawnCount(spawnLog), 1);
 			assert.ok(pool.has(key));
 			// kill underlying child
-			const entry = (pool as any).entries.get(key);
+			const entry = (
+				pool as unknown as {
+					entries: Map<string, { child: { kill: (sig: string) => void } }>;
+				}
+			).entries.get(key);
 			assert.ok(entry, "entry should exist");
 			try {
 				entry.child.kill("SIGKILL");
@@ -736,13 +733,6 @@ describe("agy-pool (long-lived)", () => {
 			// conversationIds remain sticky per logical session
 			assert.equal(rA2.conversationId, rA1.conversationId);
 			assert.equal(rB2.conversationId, rB1.conversationId);
-			// more interleaved with delays to prove ordering isolation
-			const handlerSlow = `
-        const d = prompt.startsWith("A") ? 30 : 10;
-        await new Promise(r=>setTimeout(r,d));
-        console.log(JSON.stringify({ event: "step_update", step_update: { step_type: "agent_response", text_delta: "echo:"+prompt, state: "DONE", conversation_id: convId } }));
-        console.log(JSON.stringify({ event: "result", result: { status: "SUCCESS", response: "echo:"+prompt, conversation_id: convId } }));
-      `;
 			// already have pool; just run interleaved again using same wrapper (which already has echoHandler, but we can still test isolation)
 			const pA3 = pool.acquire("pi-sess-A", cwd).prompt("A3");
 			const pB3 = pool.acquire("pi-sess-B", cwd).prompt("B3");
