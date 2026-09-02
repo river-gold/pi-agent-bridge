@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { loadConfig } from "../src/agy/config.ts";
+import { loadConfig } from "../../src/agy/config.ts";
 
 function cleanEnv() {
   delete process.env.AGY_BINARY;

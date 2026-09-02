@@ -32,17 +32,17 @@ export function resolveModelsConfigPath(override?: string): string {
   return override?.trim() || fromEnv || defaultModelsConfigPath();
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asStringArray(value: unknown): string[] | undefined {
+export function asStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out = value.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
   return out.length > 0 ? out : undefined;
 }
 
-function parseModelEntry(raw: unknown, id: string): ConfigModelEntry | null {
+export function parseModelEntry(raw: unknown, id: string): ConfigModelEntry | null {
   if (!isPlainObject(raw)) return null;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : id;
   const entry: ConfigModelEntry = { name };
@@ -64,7 +64,7 @@ function parseModelEntry(raw: unknown, id: string): ConfigModelEntry | null {
   return entry;
 }
 
-function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
+export function parseAgentSection(raw: unknown): AgentModelCatalog | undefined {
   if (!isPlainObject(raw)) return undefined;
   if (!("models" in raw)) return undefined;
   const modelsRaw = raw.models;
@@ -97,10 +97,10 @@ interface LoadedModelsConfig {
   exists: boolean;
 }
 
-async function readModelsConfigFile(configPath: string): Promise<LoadedModelsConfig> {
+export async function readModelsConfigFile(configPath: string, readFileFn: (path: string, encoding: string) => Promise<string> = readFile as any): Promise<LoadedModelsConfig> {
   let text: string;
   try {
-    text = await readFile(configPath, "utf-8");
+    text = await readFileFn(configPath, "utf-8");
   } catch (error) {
     const code =
       error && typeof error === "object" && "code" in error

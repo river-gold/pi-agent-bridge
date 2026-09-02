@@ -33,15 +33,16 @@ export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
   return map;
 }
 
-function mapConfigEntry(id: string, entry: ConfigModelEntry): DiscoveredAgyModel {
+export function mapConfigEntry(id: string, entry: ConfigModelEntry): DiscoveredAgyModel {
   const variants = entry.variants ?? [];
-  return {
+  const result: DiscoveredAgyModel = {
     name: entry.name ?? id,
     defaultVariant: entry.defaultVariant ?? variants[0],
     variants,
-    ...(entry.contextWindow ? { contextWindow: entry.contextWindow } : {}),
-    ...(entry.maxTokens ? { maxTokens: entry.maxTokens } : {}),
   };
+  if (entry.contextWindow) result.contextWindow = entry.contextWindow;
+  if (entry.maxTokens) result.maxTokens = entry.maxTokens;
+  return result;
 }
 
 export function toPiModels(discovered: Record<string, DiscoveredAgyModel> = {}): {

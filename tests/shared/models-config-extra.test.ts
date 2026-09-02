@@ -6,7 +6,7 @@ import {
   loadModelsConfigFile,
   parseModelsConfig,
   resolveAgentCatalog,
-} from "../src/shared/models-config.ts";
+} from "../../src/shared/models-config.ts";
 
 describe("models-config extra", () => {
   it("parseModelsConfig non-plain", () => {

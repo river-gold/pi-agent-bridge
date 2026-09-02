@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { discoverModels as discoverAgy } from "../src/agy/agy-models.ts";
+import { discoverModels as discoverAgy } from "../../src/agy/agy-models.ts";
 import {
   defaultModelsConfigPath,
   loadModelsConfigFile,
@@ -12,10 +12,10 @@ import {
   parseModelsConfig,
   resolveAgentCatalog,
   resolveModelsConfigPath,
-} from "../src/shared/models-config.ts";
+} from "../../src/shared/models-config.ts";
 
 const execFileAsync = promisify(execFile);
-const modelsConfigModuleUrl = new URL("../src/shared/models-config.ts", import.meta.url).href;
+const modelsConfigModuleUrl = new URL("../../src/shared/models-config.ts", import.meta.url).href;
 const relativeConfigPath = join(".pi", "agent", "pi-agent-bridge.jsonc");
 
 type ChildLoadResult =

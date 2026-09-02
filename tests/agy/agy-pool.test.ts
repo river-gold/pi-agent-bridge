@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgyPool, compositeKey, hashCwd } from "../src/agy/agy-pool.ts";
+import { AgyPool, compositeKey, hashCwd } from "../../src/agy/agy-pool.ts";
 
 /** helper: delay */
 function delay(ms: number): Promise<void> {

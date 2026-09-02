@@ -63,12 +63,12 @@ export function compositeKey(sessionId: string | undefined, cwd: string): string
 }
 
 /** Whether a raw sessionKey already looks like a composite key. */
-function isCompositeKey(key: string): boolean {
+export function isCompositeKey(key: string): boolean {
   // composite is sid::hex16 — must end with :: + 16 hex chars
   return /^.+::[0-9a-f]{16}$/.test(key);
 }
 
-function createAbortError(reason?: unknown): Error {
+export function createAbortError(reason?: unknown): Error {
   if (reason instanceof Error) {
     if (reason.name === "AbortError") return reason;
     const err = new Error(reason.message);
@@ -76,15 +76,47 @@ function createAbortError(reason?: unknown): Error {
     err.stack = reason.stack;
     return err;
   }
-  if (typeof DOMException !== "undefined") {
-    return new DOMException(
-      typeof reason === "string" ? reason : "The operation was aborted",
-      "AbortError",
-    );
-  }
-  const err = new Error(typeof reason === "string" ? reason : "The operation was aborted");
+  const message = typeof reason === "string" ? reason : "The operation was aborted";
+  const err = new Error(message);
   err.name = "AbortError";
   return err;
+}
+
+export function parseAgyLine(rawLine: string): Record<string, unknown> | null {
+  const line = rawLine.trim();
+  if (!line.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(line) as Record<string, unknown>;
+    if (typeof parsed.event !== "string") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function handleAgentResponse(pending: any, stepType: string | undefined, textDelta: string | undefined, state: string | undefined, status: string | undefined): void {
+  if (stepType !== "agent_response" || typeof textDelta !== "string" || !pending) return;
+  if (state === "ACTIVE" || state === "DONE") {
+    pending.accumulatedText += textDelta;
+    pending.onEvent?.({ type: "text", text: textDelta });
+    return;
+  }
+  if (status === "DONE") {
+    if (textDelta.startsWith(pending.accumulatedText)) {
+      const suffix = textDelta.slice(pending.accumulatedText.length);
+      if (suffix) {
+        pending.accumulatedText = textDelta;
+        pending.onEvent?.({ type: "text", text: suffix });
+      }
+    } else if (!pending.streamError) {
+      pending.streamError = new Error("Inconsistent stream: DONE snapshot does not match accumulated text");
+    }
+    return;
+  }
+  if (textDelta) {
+    pending.accumulatedText += textDelta;
+    pending.onEvent?.({ type: "text", text: textDelta });
+  }
 }
 
 interface PendingTurn {
@@ -307,15 +339,8 @@ export class AgyPool {
   }
 
   private handleLine(entry: PoolEntry, rawLine: string) {
-    const line = rawLine.trim();
-    if (!line.startsWith("{")) return;
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      return;
-    }
-    if (typeof parsed.event !== "string") return;
+    const parsed = parseAgyLine(rawLine);
+    if (!parsed) return;
 
     const pending = entry.pending;
 
@@ -358,27 +383,7 @@ export class AgyPool {
         (typeof step.status === "string" ? step.status : undefined) ??
         (typeof parsed.status === "string" ? parsed.status : undefined);
 
-      if (stepType === "agent_response" && typeof textDelta === "string" && pending) {
-        if (state === "ACTIVE" || state === "DONE") {
-          pending.accumulatedText += textDelta;
-          pending.onEvent?.({ type: "text", text: textDelta });
-        } else if (status === "DONE") {
-          if (textDelta.startsWith(pending.accumulatedText)) {
-            const suffix = textDelta.slice(pending.accumulatedText.length);
-            if (suffix) {
-              pending.accumulatedText = textDelta;
-              pending.onEvent?.({ type: "text", text: suffix });
-            }
-          } else if (!pending.streamError) {
-            pending.streamError = new Error(
-              "Inconsistent stream: DONE snapshot does not match accumulated text",
-            );
-          }
-        } else if (textDelta) {
-          pending.accumulatedText += textDelta;
-          pending.onEvent?.({ type: "text", text: textDelta });
-        }
-      }
+      handleAgentResponse(pending, stepType, textDelta, state, status);
 
       if (stepType === "tool" && typeof step.tool_name === "string" && pending) {
         const toolName = step.tool_name as string;

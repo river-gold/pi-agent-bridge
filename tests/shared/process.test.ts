@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { disposeChild } from "../src/shared/process.ts";
+import { disposeChild } from "../../src/shared/process.ts";
 
 describe("process disposeChild", () => {
   it("null returns", async () => {

@@ -30,10 +30,10 @@ export interface AcquireLockOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_STALE_TIMEOUT_MS = 30_000;
-const MAX_LOCK_ATTEMPTS = 10_000;
+export const DEFAULT_STALE_TIMEOUT_MS = 30_000;
+export const MAX_LOCK_ATTEMPTS = 10_000;
 
-function abortError(signal: AbortSignal): Error {
+export function abortError(signal: AbortSignal): Error {
   const reason = signal.reason;
   const error = new Error(reason instanceof Error ? reason.message : "The operation was aborted");
   error.name = "AbortError";
@@ -41,18 +41,18 @@ function abortError(signal: AbortSignal): Error {
   return error;
 }
 
-function timeoutError(): Error {
+export function timeoutError(): Error {
   const error = new Error("Timed out acquiring lock");
   error.name = "TimeoutError";
   return error;
 }
 
-function throwIfCancelled(signal: AbortSignal | undefined, deadline: number | undefined): void {
+export function throwIfCancelled(signal: AbortSignal | undefined, deadline: number | undefined): void {
   if (signal?.aborted) throw abortError(signal);
   if (deadline !== undefined && Date.now() >= deadline) throw timeoutError();
 }
 
-function sleep(
+export function sleep(
   ms: number,
   signal: AbortSignal | undefined,
   deadline: number | undefined,
@@ -81,7 +81,7 @@ function sleep(
   });
 }
 
-function errCode(error: unknown): string | undefined {
+export function errCode(error: unknown): string | undefined {
   if (error && typeof error === "object" && "code" in error) {
     const code = (error as { code: unknown }).code;
     return typeof code === "string" ? code : undefined;
@@ -89,7 +89,7 @@ function errCode(error: unknown): string | undefined {
   return undefined;
 }
 
-function defaultIsAlive(pid: number): boolean {
+export function defaultIsAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -98,7 +98,7 @@ function defaultIsAlive(pid: number): boolean {
   }
 }
 
-function parseLock(raw: string): LockPayload | null {
+export function parseLock(raw: string): LockPayload | null {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (
@@ -115,10 +115,10 @@ function parseLock(raw: string): LockPayload | null {
   }
 }
 
-async function createLockFile(lockPath: string, token: string): Promise<LockIdentity | "exists"> {
+export async function createLockFile(lockPath: string, token: string, openFn: (path: string, flags: string) => Promise<FileHandle> = open as any): Promise<LockIdentity | "exists"> {
   let fh: FileHandle;
   try {
-    fh = await open(lockPath, "wx");
+    fh = await openFn(lockPath, "wx");
   } catch (error) {
     if (errCode(error) === "EEXIST") return "exists";
     throw error;
@@ -135,7 +135,11 @@ async function createLockFile(lockPath: string, token: string): Promise<LockIden
   }
 }
 
-async function maybeStealStaleLock(
+export function isStale(mtimeMs: number, staleTimeoutMs: number): boolean {
+  return Date.now() - mtimeMs >= staleTimeoutMs;
+}
+
+export async function maybeStealStaleLock(
   lockPath: string,
   staleTimeoutMs: number,
   isAlive: (pid: number) => boolean,
@@ -147,13 +151,13 @@ async function maybeStealStaleLock(
       return;
     }
     const stats = await stat(lockPath);
-    if (Date.now() - stats.mtimeMs >= staleTimeoutMs) await unlink(lockPath);
+    if (isStale(stats.mtimeMs, staleTimeoutMs)) await unlink(lockPath);
   } catch {
     return;
   }
 }
 
-function releaseLock(lockPath: string, identity: LockIdentity): () => Promise<void> {
+export function releaseLock(lockPath: string, identity: LockIdentity): () => Promise<void> {
   return async () => {
     try {
       const pathStat = await stat(lockPath);
@@ -187,17 +191,19 @@ export async function tryAcquireLock(
   return releaseLock(lockPath, second);
 }
 
-async function acquireLock(
+export async function acquireLock(
   lockPath: string,
   options: AcquireLockOptions = {},
+  maxAttempts: number = MAX_LOCK_ATTEMPTS,
+  tryAcquireLockFn: (path: string, opts: AcquireLockOptions) => Promise<(() => Promise<void>) | null> = tryAcquireLock,
 ): Promise<() => Promise<void>> {
   let backoff = 1;
   const maxBackoff = 500;
   const deadline = options.timeoutMs === undefined ? undefined : Date.now() + options.timeoutMs;
 
-  for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     throwIfCancelled(options.abortSignal, deadline);
-    const got = await tryAcquireLock(lockPath, options);
+    const got = await tryAcquireLockFn(lockPath, options);
     if (got) {
       try {
         throwIfCancelled(options.abortSignal, deadline);

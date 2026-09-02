@@ -23,12 +23,19 @@ export async function disposeChild(child: ChildProcess | null): Promise<void> {
   await new Promise<void>((resolve) => {
     const finish = () => resolve();
     child.once("exit", finish);
-    try {
-      child.kill("SIGKILL");
-    } catch {
+    if (!tryKill(child, "SIGKILL")) {
       finish();
       return;
     }
     setTimeout(finish, 1000).unref();
   });
+}
+
+export function tryKill(child: ChildProcess, signal: NodeJS.Signals): boolean {
+  try {
+    child.kill(signal);
+    return true;
+  } catch {
+    return false;
+  }
 }

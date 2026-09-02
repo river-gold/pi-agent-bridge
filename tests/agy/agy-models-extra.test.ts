@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildThinkingLevelMap, discoverModels, loadAgyCatalog, resolveAgyModelId, toPiModels } from "../src/agy/agy-models.ts";
+import { buildThinkingLevelMap, discoverModels, loadAgyCatalog, resolveAgyModelId, toPiModels } from "../../src/agy/agy-models.ts";
 
 describe("agy-models extra", () => {
   it("toPiModels sorting and defaults", () => {

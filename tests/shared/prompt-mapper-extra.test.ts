@@ -1,6 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { mapPrompt } from "../src/shared/prompt-mapper.ts";
+import { mapPrompt } from "../../src/shared/prompt-mapper.ts";
 
 describe("prompt-mapper extra", () => {
   it("strips Task: prefix", () => {

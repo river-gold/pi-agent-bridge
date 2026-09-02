@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { findNewConversation, snapshot } from "../src/agy/conversation-tracker.ts";
+import { findNewConversation, snapshot } from "../../src/agy/conversation-tracker.ts";
 
 describe("conversation-tracker", () => {
   it("snapshot filters .pb", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractDelta } from "../src/agy/extract-delta.ts";
+import { extractDelta } from "../../src/agy/extract-delta.ts";
 
 describe("extractDelta", () => {
   it("returns full text when not conversation bound", () => {

@@ -4,7 +4,7 @@ import {
   discoverModels,
   resolveAgyModelId,
   toPiModels,
-} from "../src/agy/agy-models.ts";
+} from "../../src/agy/agy-models.ts";
 
 const SAMPLE = {
   "gemini-3.7-flash": {

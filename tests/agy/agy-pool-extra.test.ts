@@ -2,7 +2,7 @@ import { chmod, mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgyPool, compositeKey, hashCwd } from "../src/agy/agy-pool.ts";
+import { AgyPool, compositeKey, hashCwd } from "../../src/agy/agy-pool.ts";
 
 function mockTemplate(handler: string): string {
   return `import { createInterface } from "node:readline";

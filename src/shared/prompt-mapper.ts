@@ -33,6 +33,7 @@ function extractTask(raw: string): string {
 }
 
 function extractText(msg: Message): string {
+  // v8 ignore next -- unreachable via mapPrompt but kept for standalone use
   if (msg.role !== "user") return "";
   if (typeof msg.content === "string") return msg.content;
   return msg.content

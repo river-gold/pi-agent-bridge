@@ -1,6 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { mapPrompt } from "../src/agy/prompt-mapper.ts";
+import { mapPrompt } from "../../src/agy/prompt-mapper.ts";
 
 const assistant = (text: string): Message => ({
   role: "assistant",
