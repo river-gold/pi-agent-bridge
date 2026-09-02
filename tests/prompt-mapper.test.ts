@@ -3,57 +3,55 @@ import { describe, expect, it } from "vitest";
 import { mapPrompt } from "../src/agy/prompt-mapper.ts";
 
 const assistant = (text: string): Message => ({
-	role: "assistant",
-	content: [{ type: "text", text }],
-	api: "agy-cli",
-	provider: "agy",
-	model: "m",
-	usage: {
-		input: 0,
-		output: 0,
-		cacheRead: 0,
-		cacheWrite: 0,
-		totalTokens: 0,
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-	},
-	stopReason: "stop",
-	timestamp: 1,
+  role: "assistant",
+  content: [{ type: "text", text }],
+  api: "agy-cli",
+  provider: "agy",
+  model: "m",
+  usage: {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  },
+  stopReason: "stop",
+  timestamp: 1,
 });
 
 describe("mapPrompt", () => {
-	it("returns single user message as-is", () => {
-		const messages: Message[] = [
-			{ role: "user", content: "hello", timestamp: 1 },
-		];
-		expect(mapPrompt(messages)).toBe("hello");
-	});
+  it("returns single user message as-is", () => {
+    const messages: Message[] = [{ role: "user", content: "hello", timestamp: 1 }];
+    expect(mapPrompt(messages)).toBe("hello");
+  });
 
-	it("ignores history and returns only latest user text", () => {
-		const messages: Message[] = [
-			{ role: "user", content: "old", timestamp: 1 },
-			assistant("reply"),
-			{ role: "user", content: "only this", timestamp: 3 },
-		];
-		expect(mapPrompt(messages)).toBe("only this");
-	});
+  it("ignores history and returns only latest user text", () => {
+    const messages: Message[] = [
+      { role: "user", content: "old", timestamp: 1 },
+      assistant("reply"),
+      { role: "user", content: "only this", timestamp: 3 },
+    ];
+    expect(mapPrompt(messages)).toBe("only this");
+  });
 
-	it("ignores tool results after last user", () => {
-		const messages: Message[] = [
-			{ role: "user", content: "do it", timestamp: 1 },
-			assistant("calling tool"),
-			{
-				role: "toolResult",
-				toolCallId: "1",
-				toolName: "bash",
-				content: [{ type: "text", text: "huge output" }],
-				isError: false,
-				timestamp: 3,
-			},
-		];
-		expect(mapPrompt(messages)).toBe("do it");
-	});
+  it("ignores tool results after last user", () => {
+    const messages: Message[] = [
+      { role: "user", content: "do it", timestamp: 1 },
+      assistant("calling tool"),
+      {
+        role: "toolResult",
+        toolCallId: "1",
+        toolName: "bash",
+        content: [{ type: "text", text: "huge output" }],
+        isError: false,
+        timestamp: 3,
+      },
+    ];
+    expect(mapPrompt(messages)).toBe("do it");
+  });
 
-	it("returns empty when no user message", () => {
-		expect(mapPrompt([assistant("x")])).toBe("");
-	});
+  it("returns empty when no user message", () => {
+    expect(mapPrompt([assistant("x")])).toBe("");
+  });
 });

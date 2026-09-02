@@ -56,17 +56,25 @@ $EDITOR .pi/agent/pi-agent-bridge.jsonc
 
 ```json
 {
-  "agy": { "models": { "gemini-3.7-flash": { "name": "Gemini 3.7 Flash", "defaultVariant": "high", "variants": ["high", "medium", "low"] } } }
+  "agy": {
+    "models": {
+      "gemini-3.7-flash": {
+        "name": "Gemini 3.7 Flash",
+        "defaultVariant": "high",
+        "variants": ["high", "medium", "low"]
+      }
+    }
+  }
 }
 ```
 
 모델 필드:
 
-| Field | Meaning |
-|---|---|
-| `name` | 표시 이름 |
+| Field                         | Meaning                      |
+| ----------------------------- | ---------------------------- |
+| `name`                        | 표시 이름                    |
 | `variants` / `defaultVariant` | 모델 id suffix → Pi thinking |
-| `contextWindow` / `maxTokens` | Pi 모델 한도 (선택) |
+| `contextWindow` / `maxTokens` | Pi 모델 한도 (선택)          |
 
 ---
 
@@ -74,11 +82,11 @@ $EDITOR .pi/agent/pi-agent-bridge.jsonc
 
 ### Config (env)
 
-| Env | Default | Meaning |
-|---|---|---|
-| `AGY_BINARY` | `agy` | CLI binary |
-| `AGY_TIMEOUT_MS` | `300000` | 턴 타임아웃 |
-| `AGY_EXTRA_ARGS` | _(empty)_ | 추가 args (공백 구분) |
+| Env                     | Default                                   | Meaning                  |
+| ----------------------- | ----------------------------------------- | ------------------------ |
+| `AGY_BINARY`            | `agy`                                     | CLI binary               |
+| `AGY_TIMEOUT_MS`        | `300000`                                  | 턴 타임아웃              |
+| `AGY_EXTRA_ARGS`        | _(empty)_                                 | 추가 args (공백 구분)    |
 | `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation 바인딩 탐색 |
 
 State: `~/.pi/agent/agy/sessions.json`

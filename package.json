@@ -1,49 +1,51 @@
 {
-	"name": "pi-agent-bridge",
-	"version": "0.1.0",
-	"description": "Pi extension that routes prompts to agy (Antigravity) CLI",
-	"type": "module",
-	"license": "MIT",
-	"keywords": [
-		"pi-package",
-		"pi",
-		"pi-coding-agent",
-		"extension",
-		"agy",
-		"antigravity",
-		"provider"
-	],
-	"files": [
-		"extensions",
-		"src",
-		"README.md",
-		"README_ko.md"
-	],
-	"pi": {
-		"extensions": [
-			"./extensions/antigravity.ts"
-		]
-	},
-	"scripts": {
-		"test": "vitest run",
-		"test:unit": "vitest run tests/*.test.ts",
-		"test:e2e": "vitest run tests/e2e",
-		"typecheck": "tsc --noEmit"
-	},
-	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.84.4",
-		"@earendil-works/pi-coding-agent": ">=0.84.4"
-	},
-	"dependencies": {
-		"@agentclientprotocol/sdk": "^1.3.0",
-		"jsonc-parser": "^3.3.1"
-	},
-	"devDependencies": {
-		"@earendil-works/pi-ai": "^0.84.4",
-		"@earendil-works/pi-coding-agent": "^0.84.4",
-		"@types/node": "^22.0.0",
-		"@vitest/coverage-v8": "^4.1.11",
-		"typescript": "^5.8.0",
-		"vitest": "^4.1.11"
-	}
+  "name": "pi-agent-bridge",
+  "version": "0.1.0",
+  "description": "Pi extension that routes prompts to agy (Antigravity) CLI",
+  "keywords": [
+    "agy",
+    "antigravity",
+    "extension",
+    "pi",
+    "pi-coding-agent",
+    "pi-package",
+    "provider"
+  ],
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "README_ko.md"
+  ],
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run tests/*.test.ts",
+    "test:e2e": "vitest run tests/e2e",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^1.3.0",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.84.4",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "oxlint": "^1.81.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.84.4",
+    "@earendil-works/pi-coding-agent": ">=0.84.4"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/antigravity.ts"
+    ]
+  }
 }

@@ -70,11 +70,11 @@ Current schema example:
 
 Per-model fields:
 
-| Field | Meaning |
-|---|---|
-| `name` | display name |
+| Field                         | Meaning                                 |
+| ----------------------------- | --------------------------------------- |
+| `name`                        | display name                            |
 | `variants` / `defaultVariant` | model id suffixes mapped to Pi thinking |
-| `contextWindow` / `maxTokens` | Pi model limits (optional) |
+| `contextWindow` / `maxTokens` | Pi model limits (optional)              |
 
 ---
 
@@ -82,11 +82,11 @@ Per-model fields:
 
 ### Config (env)
 
-| Env | Default | Meaning |
-|---|---|---|
-| `AGY_BINARY` | `agy` | CLI binary |
-| `AGY_TIMEOUT_MS` | `300000` | per-turn timeout |
-| `AGY_EXTRA_ARGS` | _(empty)_ | extra args, space-separated |
+| Env                     | Default                                   | Meaning                     |
+| ----------------------- | ----------------------------------------- | --------------------------- |
+| `AGY_BINARY`            | `agy`                                     | CLI binary                  |
+| `AGY_TIMEOUT_MS`        | `300000`                                  | per-turn timeout            |
+| `AGY_EXTRA_ARGS`        | _(empty)_                                 | extra args, space-separated |
 | `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation bind discovery |
 
 State: `~/.pi/agent/agy/sessions.json`
