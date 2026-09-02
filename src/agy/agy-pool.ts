@@ -107,13 +107,19 @@ export interface AgentResponsePending {
   onEvent?: (event: AgyStreamEvent) => void;
 }
 
-export function createLatch(): { tryEnter: () => boolean } {
+export function listenAbort(signal: AbortSignal | undefined, handler: () => void): () => void {
+  if (!signal) return () => {};
+  signal.addEventListener("abort", handler, { once: true });
+  return () => signal.removeEventListener("abort", handler);
+}
+
+export function createLatch(): { run: (fn: () => void) => void } {
   let done = false;
   return {
-    tryEnter(): boolean {
-      if (done) return false;
+    run(fn: () => void): void {
+      if (done) return;
       done = true;
-      return true;
+      fn();
     },
   };
 }
@@ -505,8 +511,7 @@ export class AgyPool {
   }
 
   private settlePending(entry: PoolEntry) {
-    const pending = entry.pending;
-    if (!pending) return;
+    const pending = entry.pending!;
     entry.pending = null;
     clearTimeout(pending.timeoutTimer);
     // abort listener cleanup handled in _exec wrapper (pending.resolve/reject)
@@ -541,13 +546,12 @@ export class AgyPool {
       }
     }
 
+    const conversationId = pending.conversationId || entry.conversationId;
     pending.resolve({
       stdout: finalText,
       stderr,
       exitCode: 0,
-      ...(pending.conversationId || entry.conversationId
-        ? { conversationId: pending.conversationId ?? entry.conversationId }
-        : {}),
+      ...(conversationId ? { conversationId } : {}),
       ...(pending.usage ? { usage: pending.usage } : {}),
     });
   }
@@ -633,7 +637,7 @@ export class AgyPool {
       stdinWritable: entry.child.stdin?.writable,
     });
     if (block) {
-      if (block !== "agy pool entry closed") this.entries.delete(entry.key);
+      this.entries.delete(entry.key);
       return Promise.reject(new Error(block));
     }
 
@@ -648,20 +652,20 @@ export class AgyPool {
       entry.pending = pending;
 
       const gate = createLatch();
-      const settleReject = (err: Error) => {
-        if (!gate.tryEnter()) return;
-        entry.pending = null;
-        clearTimeout(pending.timeoutTimer);
-        if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
-        if (err.name === "AbortError" || err.message.includes("timed out")) {
-          void this.disposeEntry(entry);
-          this.entries.delete(entry.key);
-        }
-        reject(err);
-      };
       const onAbort = () => {
         tryKill(entry.child, "SIGTERM");
         settleReject(createAbortError(opts.signal?.reason));
+      };
+      const stopAbort = listenAbort(opts.signal, onAbort);
+      const settleReject = (err: Error) => {
+        gate.run(() => {
+          entry.pending = null;
+          clearTimeout(pending.timeoutTimer);
+          stopAbort();
+          void this.disposeEntry(entry);
+          this.entries.delete(entry.key);
+          reject(err);
+        });
       };
 
       pending.timeoutTimer = setTimeout(() => {
@@ -670,21 +674,21 @@ export class AgyPool {
       }, timeoutMs);
       pending.timeoutTimer.unref();
 
-      if (opts.signal) opts.signal.addEventListener("abort", onAbort, { once: true });
-
       const origResolve = pending.resolve;
       const origReject = pending.reject;
       pending.resolve = (v) => {
-        if (!gate.tryEnter()) return;
-        clearTimeout(pending.timeoutTimer);
-        if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
-        origResolve(v);
+        gate.run(() => {
+          clearTimeout(pending.timeoutTimer);
+          stopAbort();
+          origResolve(v);
+        });
       };
       pending.reject = (e) => {
-        if (!gate.tryEnter()) return;
-        clearTimeout(pending.timeoutTimer);
-        if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
-        origReject(e);
+        gate.run(() => {
+          clearTimeout(pending.timeoutTimer);
+          stopAbort();
+          origReject(e);
+        });
       };
 
       writePoolPrompt(entry.child.stdin as PoolStdin, prompt, settleReject);

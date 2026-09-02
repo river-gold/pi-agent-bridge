@@ -12,6 +12,7 @@ import {
   handleAgentResponse,
   pickString,
   createLatch,
+  listenAbort,
   poolCloseMessage,
   poolExecBlockReason,
   writePoolPrompt,
@@ -81,8 +82,29 @@ describe("agy-pool extra and edge cases", () => {
     expect(pickString(1, 2)).toBeUndefined();
 
     const latch = createLatch();
-    expect(latch.tryEnter()).toBe(true);
-    expect(latch.tryEnter()).toBe(false);
+    const ran: number[] = [];
+    latch.run(() => ran.push(1));
+    latch.run(() => ran.push(2));
+    expect(ran).toEqual([1]);
+
+    const noop = listenAbort(undefined, () => {
+      throw new Error("should not fire");
+    });
+    noop();
+    const ac = new AbortController();
+    let fired = 0;
+    const stop = listenAbort(ac.signal, () => {
+      fired += 1;
+    });
+    stop();
+    ac.abort();
+    expect(fired).toBe(0);
+    const ac2 = new AbortController();
+    listenAbort(ac2.signal, () => {
+      fired += 1;
+    });
+    ac2.abort();
+    expect(fired).toBe(1);
 
     expect(poolCloseMessage(null, "SIGKILL")).toBe("agy pool process killed by SIGKILL");
     expect(poolCloseMessage(null, null)).toBe("agy pool process exited unknown");
@@ -237,6 +259,9 @@ describe("agy-pool extra and edge cases", () => {
       expect(h1.key).toContain("sess1::");
       expect(h1.cwd).toBe("/tmp");
       expect(h1.conversationId).toBeUndefined();
+      await vi.waitFor(() => {
+        if (!h1.conversationId) throw new Error("init not yet applied");
+      });
 
       const r1 = await h1.prompt("hi");
       expect(r1.stdout).toBe("ok");
@@ -475,6 +500,41 @@ rl.on("line", (line)=>{
     }
   });
 
+  it("applies boot step_update before pending then uses entry conversationId", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pool-boot-"));
+    const js = join(dir, "boot.mjs");
+    const wrap = join(dir, "wrap-boot");
+    await writeFile(
+      js,
+      `import { createInterface } from "node:readline";
+console.log(JSON.stringify({event:"init",conversation_id:"boot"}));
+console.log(JSON.stringify({event:"step_update",conversation_id:"boot-step",step_type:"agent_response",text_delta:"ignored",state:"ACTIVE"}));
+console.log(JSON.stringify({event:"result",result:{status:"SUCCESS",response:"ignored"}}));
+const rl=createInterface({input:process.stdin});
+rl.on("line", (line)=>{
+  let msg; try{msg=JSON.parse(line);}catch{return;}
+  if(msg.event!=="user") return;
+  console.log(JSON.stringify({event:"result",result:{status:"SUCCESS",response:"ok"}}));
+});\n`,
+    );
+    await writeFile(wrap, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`);
+    await chmod(js, 0o755);
+    await chmod(wrap, 0o755);
+    const pool = new AgyPool({ binary: wrap, timeoutMs: 5000 });
+    try {
+      const handle = pool.acquire("boot", "/tmp");
+      await vi.waitFor(() => {
+        if (!handle.conversationId) throw new Error("boot conv missing");
+      });
+      const res = await handle.prompt("hi");
+      expect(res.stdout).toBe("ok");
+      expect(res.conversationId).toBeTruthy();
+    } finally {
+      await pool.disposeAll();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("empty constructor uses defaults", async () => {
     const pool = new AgyPool();
     expect(pool.size()).toBe(0);
@@ -580,13 +640,28 @@ rl.on("line", (line)=>{
       expect(await poolFlat.acquire("flat-result", "/tmp").prompt("x")).toMatchObject({ stdout: "flat" });
       await poolFlat.disposeAll();
 
-      const wrapNone = await makeMock(
-        dir,
-        `console.log(JSON.stringify({event:"result", result:{status:"SUCCESS", response:"plain"}}));`,
+      const wrapNoneJs = join(dir, "none.mjs");
+      const wrapNone = join(dir, "wrap-none");
+      await writeFile(
+        wrapNoneJs,
+        `import { createInterface } from "node:readline";
+const rl=createInterface({input:process.stdin});
+rl.on("line", (line)=>{
+  let msg; try{msg=JSON.parse(line);}catch{return;}
+  if(msg.event!=="user") return;
+  console.log(JSON.stringify({event:"result",result:{status:"SUCCESS",response:"plain"}}));
+});\n`,
       );
+      await writeFile(
+        wrapNone,
+        `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(wrapNoneJs)} "$@"\n`,
+      );
+      await chmod(wrapNoneJs, 0o755);
+      await chmod(wrapNone, 0o755);
       const poolNone = new AgyPool({ binary: wrapNone, timeoutMs: 2000 });
       const none = await poolNone.acquire("no-conv", "/tmp").prompt("x");
       expect(none.stdout).toBe("plain");
+      expect(none.conversationId).toBeUndefined();
       await poolNone.disposeAll();
     } finally {
       await pool.disposeAll();
