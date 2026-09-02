@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { discoverModels } from "../src/agy/agy-models.ts";
 import { loadConfig } from "../src/agy/config.ts";
 import { SessionStore } from "../src/agy/session-store.ts";
-import { mapPrompt } from "../src/agy/prompt-mapper.ts";
+import { mapPromptWithGap } from "../src/agy/prompt-mapper.ts";
 import { resolveAgyModelId, type AgyModelMeta } from "../src/agy/agy-models.ts";
 import { findNewConversation, snapshot } from "../src/agy/conversation-tracker.ts";
 import { extractDelta } from "../src/agy/extract-delta.ts";
@@ -123,7 +123,7 @@ export function streamAgyPool(
       const before = conversationId ? null : await snapshot(runtime.config.conversationsDir);
       remainingTimeout();
 
-      const prompt = mapPrompt(context.messages);
+      const prompt = mapPromptWithGap(context.messages);
       remainingTimeout();
       if (!prompt.trim()) throw new Error("agy turn has no user text");
 

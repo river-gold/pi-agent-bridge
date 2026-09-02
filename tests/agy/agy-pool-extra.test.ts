@@ -36,7 +36,10 @@ async function makeMock(dir: string, handler: string) {
   const js = join(dir, `mock-${Date.now()}-${Math.random()}.mjs`);
   const wrap = join(dir, `wrap-${Date.now()}-${Math.random()}`);
   await writeFile(js, mockTemplate(handler));
-  await writeFile(wrap, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`);
+  await writeFile(
+    wrap,
+    `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`,
+  );
   await chmod(js, 0o755);
   await chmod(wrap, 0o755);
   return wrap;
@@ -110,22 +113,34 @@ describe("agy-pool extra and edge cases", () => {
     expect(poolCloseMessage(null, null)).toBe("agy pool process exited unknown");
     expect(poolCloseMessage(1, null)).toBe("agy pool process exited 1");
 
-    expect(poolExecBlockReason({ closed: true, exitCode: null, signalCode: null, stdinWritable: true })).toBe(
-      "agy pool entry closed",
-    );
-    expect(poolExecBlockReason({ closed: false, exitCode: 1, signalCode: null, stdinWritable: true })).toBe(
-      "agy pool process exited",
-    );
-    expect(poolExecBlockReason({ closed: false, exitCode: null, signalCode: "SIGTERM", stdinWritable: true })).toBe(
-      "agy pool process exited",
-    );
-    expect(poolExecBlockReason({ closed: false, exitCode: null, signalCode: null, stdinWritable: false })).toBe(
-      "agy pool stdin not writable",
-    );
+    expect(
+      poolExecBlockReason({ closed: true, exitCode: null, signalCode: null, stdinWritable: true }),
+    ).toBe("agy pool entry closed");
+    expect(
+      poolExecBlockReason({ closed: false, exitCode: 1, signalCode: null, stdinWritable: true }),
+    ).toBe("agy pool process exited");
+    expect(
+      poolExecBlockReason({
+        closed: false,
+        exitCode: null,
+        signalCode: "SIGTERM",
+        stdinWritable: true,
+      }),
+    ).toBe("agy pool process exited");
+    expect(
+      poolExecBlockReason({
+        closed: false,
+        exitCode: null,
+        signalCode: null,
+        stdinWritable: false,
+      }),
+    ).toBe("agy pool stdin not writable");
     expect(poolExecBlockReason({ closed: false, exitCode: null, signalCode: null })).toBe(
       "agy pool stdin not writable",
     );
-    expect(poolExecBlockReason({ closed: false, exitCode: null, signalCode: null, stdinWritable: true })).toBeNull();
+    expect(
+      poolExecBlockReason({ closed: false, exitCode: null, signalCode: null, stdinWritable: true }),
+    ).toBeNull();
   });
 
   it("writePoolPrompt success, backpressure, callback error, throw", () => {
@@ -259,9 +274,12 @@ describe("agy-pool extra and edge cases", () => {
       expect(h1.key).toContain("sess1::");
       expect(h1.cwd).toBe("/tmp");
       expect(h1.conversationId).toBeUndefined();
-      await vi.waitFor(() => {
-        if (!h1.conversationId) throw new Error("init not yet applied");
-      });
+      await vi.waitFor(
+        () => {
+          if (!h1.conversationId) throw new Error("init not yet applied");
+        },
+        { timeout: 5000 },
+      );
 
       const r1 = await h1.prompt("hi");
       expect(r1.stdout).toBe("ok");
@@ -353,7 +371,9 @@ describe("agy-pool extra and edge cases", () => {
       `console.log(JSON.stringify({event:"result", result:{status:"FAILED"}}));`,
     );
     const pool2 = new AgyPool({ binary: wrapFail2, timeoutMs: 2000 });
-    await expect(pool2.acquire("f2", "/tmp").prompt("hi")).rejects.toThrow("agy failed with status FAILED");
+    await expect(pool2.acquire("f2", "/tmp").prompt("hi")).rejects.toThrow(
+      "agy failed with status FAILED",
+    );
     await pool2.disposeAll();
 
     const wrapFail3 = await makeMock(
@@ -459,7 +479,10 @@ rl.on("line", (line)=>{
 });
 `,
     );
-    await writeFile(wrap, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`);
+    await writeFile(
+      wrap,
+      `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`,
+    );
     await chmod(js, 0o755);
     await chmod(wrap, 0o755);
 
@@ -517,15 +540,21 @@ rl.on("line", (line)=>{
   console.log(JSON.stringify({event:"result",result:{status:"SUCCESS",response:"ok"}}));
 });\n`,
     );
-    await writeFile(wrap, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`);
+    await writeFile(
+      wrap,
+      `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(js)} "$@"\n`,
+    );
     await chmod(js, 0o755);
     await chmod(wrap, 0o755);
     const pool = new AgyPool({ binary: wrap, timeoutMs: 5000 });
     try {
       const handle = pool.acquire("boot", "/tmp");
-      await vi.waitFor(() => {
-        if (!handle.conversationId) throw new Error("boot conv missing");
-      });
+      await vi.waitFor(
+        () => {
+          if (!handle.conversationId) throw new Error("boot conv missing");
+        },
+        { timeout: 5000 },
+      );
       const res = await handle.prompt("hi");
       expect(res.stdout).toBe("ok");
       expect(res.conversationId).toBeTruthy();
@@ -580,7 +609,9 @@ rl.on("line", (line)=>{
     const poolHang = new AgyPool({ binary: wrapHang, timeoutMs: 5000 });
     try {
       const ac = new AbortController();
-      const hanging = poolHang.acquire("abort-me", "/tmp").prompt("abort-me", { signal: ac.signal });
+      const hanging = poolHang
+        .acquire("abort-me", "/tmp")
+        .prompt("abort-me", { signal: ac.signal });
       await new Promise((r) => setTimeout(r, 80));
       ac.abort();
       await expect(hanging).rejects.toMatchObject({ name: "AbortError" });
@@ -637,7 +668,9 @@ rl.on("line", (line)=>{
         `console.log(JSON.stringify({event:"result", status:"SUCCESS", response:"flat"}));`,
       );
       const poolFlat = new AgyPool({ binary: wrapFlat, timeoutMs: 2000 });
-      expect(await poolFlat.acquire("flat-result", "/tmp").prompt("x")).toMatchObject({ stdout: "flat" });
+      expect(await poolFlat.acquire("flat-result", "/tmp").prompt("x")).toMatchObject({
+        stdout: "flat",
+      });
       await poolFlat.disposeAll();
 
       const wrapNoneJs = join(dir, "none.mjs");
