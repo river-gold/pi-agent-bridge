@@ -10,9 +10,19 @@ export function stripWarnings(text: string): string {
 }
 
 export function hasBoundary(output: string, text: string, start: number): boolean {
+  if (text.length === 0) return true;
   if (text.endsWith("\n")) return true;
   if (start + text.length === output.length) return true;
-  return /\s/.test(output[start + text.length] ?? "");
+  const nextChar = output[start + text.length];
+  if (nextChar === undefined) return true;
+  return /\s/.test(nextChar);
+}
+
+export function getFirstTokenStart(match: RegExpMatchArray | null): number {
+  if (!match) return 0;
+  const idx = match.index;
+  if (idx === undefined) return 0;
+  return idx;
 }
 
 export function extractTailDelta(output: string, normPrevTrimmed: string): string | null {
@@ -23,20 +33,20 @@ export function extractTailDelta(output: string, normPrevTrimmed: string): strin
   if (output.startsWith(tail)) {
     tailStart = 0;
   } else if (firstTokenMatch) {
-    const firstTokenStart = firstTokenMatch.index ?? 0;
+    const firstTokenStart = getFirstTokenStart(firstTokenMatch);
     const firstToken = firstTokenMatch[0]!;
     if (firstToken.endsWith(tail)) {
       tailStart = firstTokenStart + firstToken.length - tail.length;
     }
   }
-  if (tailStart !== undefined && hasBoundary(output, tail, tailStart)) {
-    return output.slice(tailStart + tail.length).replace(/^\s+/, "");
-  }
-  return null;
+  if (tailStart === undefined) return null;
+  if (!hasBoundary(output, tail, tailStart)) return null;
+  return output.slice(tailStart + tail.length).replace(/^\s+/, "");
 }
 
 export function isConversationBound(conversationBound: boolean, prevOutput: string): boolean {
-  return Boolean(conversationBound && prevOutput);
+  if (!conversationBound) return false;
+  return prevOutput.length > 0;
 }
 
 export function extractDelta(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractDelta, hasBoundary, normalizeInput, stripWarnings, extractTailDelta, isConversationBound } from "../../src/agy/extract-delta.ts";
+import { extractDelta, hasBoundary, normalizeInput, stripWarnings, extractTailDelta, isConversationBound, getFirstTokenStart } from "../../src/agy/extract-delta.ts";
 
 describe("extractDelta comprehensive", () => {
   it("not bound or empty prev", () => {
@@ -39,6 +39,7 @@ describe("extractDelta comprehensive", () => {
   });
   it("isConversationBound", () => {
     expect(isConversationBound(false, "hello")).toBe(false);
+    expect(isConversationBound(false, "")).toBe(false);
     expect(isConversationBound(true, "")).toBe(false);
     expect(isConversationBound(true, "hello")).toBe(true);
   });
@@ -48,7 +49,12 @@ describe("extractDelta comprehensive", () => {
     expect(hasBoundary("helloworld", "hello", 0)).toBe(false);
     expect(hasBoundary("hello world", "hello", 0)).toBe(true);
     expect(hasBoundary("hello\n", "hello\n", 0)).toBe(true);
-    expect(hasBoundary("hi", "hello", 0)).toBe(false);
+    expect(hasBoundary("abc", "", 0)).toBe(true);
+    expect(hasBoundary("hello", "hello", 0)).toBe(true);
+    expect(hasBoundary("hello", "hello", 5)).toBe(true);
+    expect(getFirstTokenStart(null)).toBe(0);
+    expect(getFirstTokenStart([] as unknown as RegExpMatchArray)).toBe(0);
+    expect(extractTailDelta("hello world output", "completely different previous text over 20 chars")).toBeNull();
     expect(extractTailDelta("hello", "short")).toBeNull();
     expect(extractTailDelta("A".repeat(150) + " rest", "A".repeat(200))).toBe("rest");
   });

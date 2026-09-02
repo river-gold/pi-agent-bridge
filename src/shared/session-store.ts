@@ -33,9 +33,16 @@ export interface AcquireLockOptions {
 export const DEFAULT_STALE_TIMEOUT_MS = 30_000;
 export const MAX_LOCK_ATTEMPTS = 10_000;
 
+export function getAbortReason(reason: unknown): string {
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === "string") return reason;
+  return "The operation was aborted";
+}
+
 export function abortError(signal: AbortSignal): Error {
   const reason = signal.reason;
-  const error = new Error(reason instanceof Error ? reason.message : "The operation was aborted");
+  const msg = getAbortReason(reason);
+  const error = new Error(msg);
   error.name = "AbortError";
   if (reason instanceof Error && reason.stack) error.stack = reason.stack;
   return error;
@@ -82,10 +89,9 @@ export function sleep(
 }
 
 export function errCode(error: unknown): string | undefined {
-  if (error && typeof error === "object" && "code" in error) {
-    const code = (error as { code: unknown }).code;
-    return typeof code === "string" ? code : undefined;
-  }
+  if (!error || typeof error !== "object") return undefined;
+  const code = (error as { code: unknown }).code;
+  if (typeof code === "string") return code;
   return undefined;
 }
 
@@ -94,7 +100,9 @@ export function defaultIsAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return errCode(error) === "EPERM";
+    const code = errCode(error);
+    if (code === "EPERM") return true;
+    return false;
   }
 }
 

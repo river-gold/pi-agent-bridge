@@ -12,6 +12,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { createHash } from "node:crypto";
+import { terminateChild, tryEnd, tryKill } from "../shared/process.ts";
 
 export interface AgyPoolOptions {
   binary?: string;
@@ -82,6 +83,12 @@ export function createAbortError(reason?: unknown): Error {
   return err;
 }
 
+export function pickString(primary: unknown, fallback: unknown): string | undefined {
+  if (typeof primary === "string") return primary;
+  if (typeof fallback === "string") return fallback;
+  return undefined;
+}
+
 export function parseAgyLine(rawLine: string): Record<string, unknown> | null {
   const line = rawLine.trim();
   if (!line.startsWith("{")) return null;
@@ -94,7 +101,71 @@ export function parseAgyLine(rawLine: string): Record<string, unknown> | null {
   }
 }
 
-export function handleAgentResponse(pending: any, stepType: string | undefined, textDelta: string | undefined, state: string | undefined, status: string | undefined): void {
+export interface AgentResponsePending {
+  accumulatedText: string;
+  streamError?: Error;
+  onEvent?: (event: AgyStreamEvent) => void;
+}
+
+export function createLatch(): { tryEnter: () => boolean } {
+  let done = false;
+  return {
+    tryEnter(): boolean {
+      if (done) return false;
+      done = true;
+      return true;
+    },
+  };
+}
+
+export function poolCloseMessage(
+  code: number | null,
+  signal: NodeJS.Signals | string | null,
+): string {
+  if (signal) return `agy pool process killed by ${signal}`;
+  return `agy pool process exited ${code ?? "unknown"}`;
+}
+
+export function poolExecBlockReason(state: {
+  closed: boolean;
+  exitCode: number | null;
+  signalCode: NodeJS.Signals | null;
+  stdinWritable?: boolean;
+}): string | null {
+  if (state.closed) return "agy pool entry closed";
+  if (state.exitCode !== null || state.signalCode !== null) return "agy pool process exited";
+  if (!state.stdinWritable) return "agy pool stdin not writable";
+  return null;
+}
+
+export interface PoolStdin {
+  write: (chunk: string, cb?: (err?: Error | null) => void) => boolean;
+  once?: (event: string, listener: () => void) => unknown;
+}
+
+export function writePoolPrompt(
+  stdin: PoolStdin,
+  prompt: string,
+  onWriteError: (error: Error) => void,
+): void {
+  const line = JSON.stringify({ event: "user", message: { content: prompt } }) + "\n";
+  try {
+    const ok = stdin.write(line, (err) => {
+      if (err) onWriteError(new Error(`failed to write to agy pool: ${err.message}`));
+    });
+    if (!ok) stdin.once?.("drain", () => {});
+  } catch (e) {
+    onWriteError(new Error(`failed to write to agy pool: ${String(e)}`));
+  }
+}
+
+export function handleAgentResponse(
+  pending: AgentResponsePending | null,
+  stepType: string | undefined,
+  textDelta: unknown,
+  state: string | undefined,
+  status: string | undefined,
+): void {
   if (stepType !== "agent_response" || typeof textDelta !== "string" || !pending) return;
   if (state === "ACTIVE" || state === "DONE") {
     pending.accumulatedText += textDelta;
@@ -311,10 +382,7 @@ export class AgyPool {
       if (entry.closed) return;
       // if pending, reject; otherwise just remove
       if (entry.pending) {
-        const msg = signal
-          ? `agy pool process killed by ${signal}`
-          : `agy pool process exited ${code ?? "unknown"}`;
-        const err = new Error(msg);
+        const err = new Error(poolCloseMessage(code, signal));
         // late-fail tolerance not needed here; pool level crash is retryable
         entry.pending.reject(err);
         entry.pending = null;
@@ -334,8 +402,10 @@ export class AgyPool {
   private onStdout(entry: PoolEntry, chunk: Buffer) {
     entry.stdoutBuffer += entry.decoder.write(chunk);
     const lines = entry.stdoutBuffer.split("\n");
-    entry.stdoutBuffer = lines.pop() ?? "";
-    for (const line of lines) this.handleLine(entry, line);
+    entry.stdoutBuffer = lines.pop()!;
+    for (const line of lines) {
+      this.handleLine(entry, line);
+    }
   }
 
   private handleLine(entry: PoolEntry, rawLine: string) {
@@ -360,9 +430,7 @@ export class AgyPool {
 
     if (parsed.event === "step_update") {
       const step = (parsed.step_update ?? parsed) as Record<string, unknown>;
-      const stepConv =
-        (typeof step.conversation_id === "string" ? step.conversation_id : undefined) ??
-        (typeof parsed.conversation_id === "string" ? parsed.conversation_id : undefined);
+      const stepConv = pickString(step.conversation_id, parsed.conversation_id);
       if (stepConv) {
         entry.conversationId = stepConv;
         if (pending) pending.conversationId = stepConv;
@@ -370,18 +438,10 @@ export class AgyPool {
       }
       if (pending) pending.sawValidEvent = true;
 
-      const stepType =
-        (typeof step.step_type === "string" ? step.step_type : undefined) ??
-        (typeof parsed.step_type === "string" ? parsed.step_type : undefined);
-      const textDelta =
-        (typeof step.text_delta === "string" ? step.text_delta : undefined) ??
-        (typeof parsed.text_delta === "string" ? parsed.text_delta : undefined);
-      const state =
-        (typeof step.state === "string" ? step.state : undefined) ??
-        (typeof parsed.state === "string" ? parsed.state : undefined);
-      const status =
-        (typeof step.status === "string" ? step.status : undefined) ??
-        (typeof parsed.status === "string" ? parsed.status : undefined);
+      const stepType = pickString(step.step_type, parsed.step_type);
+      const textDelta = pickString(step.text_delta, parsed.text_delta);
+      const state = pickString(step.state, parsed.state);
+      const status = pickString(step.status, parsed.status);
 
       handleAgentResponse(pending, stepType, textDelta, state, status);
 
@@ -412,45 +472,43 @@ export class AgyPool {
       return;
     }
 
-    if (parsed.event === "result" && pending) {
-      pending.sawValidEvent = true;
-      const result = (parsed.result ?? parsed) as Record<string, unknown>;
-      // conversation id may be top-level or inside result
-      if (typeof parsed.conversation_id === "string") {
-        entry.conversationId = parsed.conversation_id;
-        pending.conversationId = parsed.conversation_id;
-        pending.onEvent?.({ type: "conversation", id: parsed.conversation_id });
-      } else if (typeof result.conversation_id === "string") {
-        entry.conversationId = result.conversation_id;
-        pending.conversationId = result.conversation_id;
-        pending.onEvent?.({ type: "conversation", id: result.conversation_id });
-      }
-      pending.resultStatus = typeof result.status === "string" ? result.status : undefined;
-      pending.resultResponse = typeof result.response === "string" ? result.response : undefined;
-      pending.resultError = typeof result.error === "string" ? result.error : undefined;
-      const ru = result.usage as Record<string, unknown> | undefined;
-      if (
-        ru &&
-        typeof ru.input_tokens === "number" &&
-        typeof ru.output_tokens === "number" &&
-        typeof ru.total_tokens === "number"
-      ) {
-        pending.usage = {
-          inputTokens: ru.input_tokens,
-          outputTokens: ru.output_tokens,
-          totalTokens: ru.total_tokens,
-        };
-      }
-      // settle this turn
-      this.settlePending(entry);
+    if (parsed.event !== "result") return;
+    if (!pending) return;
+    pending.sawValidEvent = true;
+    const result = (parsed.result ?? parsed) as Record<string, unknown>;
+    if (typeof parsed.conversation_id === "string") {
+      entry.conversationId = parsed.conversation_id;
+      pending.conversationId = parsed.conversation_id;
+      pending.onEvent?.({ type: "conversation", id: parsed.conversation_id });
+    } else if (typeof result.conversation_id === "string") {
+      entry.conversationId = result.conversation_id;
+      pending.conversationId = result.conversation_id;
+      pending.onEvent?.({ type: "conversation", id: result.conversation_id });
     }
+    pending.resultStatus = typeof result.status === "string" ? result.status : undefined;
+    pending.resultResponse = typeof result.response === "string" ? result.response : undefined;
+    pending.resultError = typeof result.error === "string" ? result.error : undefined;
+    const ru = result.usage as Record<string, unknown> | undefined;
+    if (
+      ru &&
+      typeof ru.input_tokens === "number" &&
+      typeof ru.output_tokens === "number" &&
+      typeof ru.total_tokens === "number"
+    ) {
+      pending.usage = {
+        inputTokens: ru.input_tokens,
+        outputTokens: ru.output_tokens,
+        totalTokens: ru.total_tokens,
+      };
+    }
+    this.settlePending(entry);
   }
 
   private settlePending(entry: PoolEntry) {
     const pending = entry.pending;
     if (!pending) return;
     entry.pending = null;
-    if (pending.timeoutTimer) clearTimeout(pending.timeoutTimer);
+    clearTimeout(pending.timeoutTimer);
     // abort listener cleanup handled in _exec wrapper (pending.resolve/reject)
     entry.lastUsed = Date.now();
     this.resetIdleTimer(entry);
@@ -464,8 +522,7 @@ export class AgyPool {
       return;
     }
 
-    const finalText =
-      pending.accumulatedText || pending.resultResponse || (!pending.sawValidEvent ? "" : "");
+    const finalText = pending.accumulatedText || pending.resultResponse || "";
     const hasAnswer = Boolean(pending.accumulatedText || pending.resultResponse);
 
     if (!hasAnswer) {
@@ -497,7 +554,7 @@ export class AgyPool {
 
   private onCrash(entry: PoolEntry, error: Error) {
     if (entry.pending) {
-      if (entry.pending.timeoutTimer) clearTimeout(entry.pending.timeoutTimer);
+      clearTimeout(entry.pending.timeoutTimer);
       entry.pending.reject(error);
       entry.pending = null;
     }
@@ -507,9 +564,7 @@ export class AgyPool {
       entry.idleTimer = null;
     }
     this.entries.delete(entry.key);
-    try {
-      entry.child.kill("SIGTERM");
-    } catch {}
+    tryKill(entry.child, "SIGTERM");
   }
 
   private resetIdleTimer(entry: PoolEntry) {
@@ -519,7 +574,7 @@ export class AgyPool {
       void this.disposeEntry(entry);
       this.entries.delete(entry.key);
     }, this.idleTimeoutMs);
-    entry.idleTimer.unref?.();
+    entry.idleTimer.unref();
   }
 
   private enforceMaxEntries() {
@@ -541,39 +596,11 @@ export class AgyPool {
     }
     if (entry.pending) {
       entry.pending.reject(new Error("agy pool entry disposed"));
-      if (entry.pending.timeoutTimer) clearTimeout(entry.pending.timeoutTimer);
+      clearTimeout(entry.pending.timeoutTimer);
       entry.pending = null;
     }
-    try {
-      entry.child.stdin?.end();
-    } catch {}
-    // give graceful close 2s then SIGKILL
-    await new Promise<void>((resolve) => {
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        resolve();
-      };
-      entry.child.once("close", finish);
-      setTimeout(() => {
-        if (entry.child.exitCode === null && entry.child.signalCode === null) {
-          try {
-            entry.child.kill("SIGTERM");
-          } catch {}
-          setTimeout(() => {
-            if (entry.child.exitCode === null && entry.child.signalCode === null) {
-              try {
-                entry.child.kill("SIGKILL");
-              } catch {}
-            }
-            finish();
-          }, 1000).unref?.();
-        } else finish();
-      }, 2000).unref?.();
-      // if no child, resolve quickly
-      if (entry.child.exitCode !== null || entry.child.signalCode !== null) finish();
-    });
+    tryEnd(entry.child.stdin);
+    await terminateChild(entry.child);
   }
 
   // Called by handle to execute a prompt
@@ -598,15 +625,16 @@ export class AgyPool {
     opts: PoolPromptOptions,
     timeoutMs: number,
   ): Promise<RunPooledResult> {
-    if (entry.closed) return Promise.reject(new Error("agy pool entry closed"));
     if (opts.signal?.aborted) return Promise.reject(createAbortError(opts.signal.reason));
-    if (entry.child.exitCode !== null || entry.child.signalCode !== null) {
-      this.entries.delete(entry.key);
-      return Promise.reject(new Error("agy pool process exited"));
-    }
-    if (!entry.child.stdin?.writable) {
-      this.entries.delete(entry.key);
-      return Promise.reject(new Error("agy pool stdin not writable"));
+    const block = poolExecBlockReason({
+      closed: entry.closed,
+      exitCode: entry.child.exitCode,
+      signalCode: entry.child.signalCode,
+      stdinWritable: entry.child.stdin?.writable,
+    });
+    if (block) {
+      if (block !== "agy pool entry closed") this.entries.delete(entry.key);
+      return Promise.reject(new Error(block));
     }
 
     return new Promise<RunPooledResult>((resolve, reject) => {
@@ -619,14 +647,12 @@ export class AgyPool {
       };
       entry.pending = pending;
 
-      let settled = false;
+      const gate = createLatch();
       const settleReject = (err: Error) => {
-        if (settled) return;
-        settled = true;
+        if (!gate.tryEnter()) return;
         entry.pending = null;
-        if (pending.timeoutTimer) clearTimeout(pending.timeoutTimer);
-        if (opts.signal && onAbort) opts.signal.removeEventListener("abort", onAbort);
-        // on timeout/abort, dispose entry so next turn respawns
+        clearTimeout(pending.timeoutTimer);
+        if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
         if (err.name === "AbortError" || err.message.includes("timed out")) {
           void this.disposeEntry(entry);
           this.entries.delete(entry.key);
@@ -634,53 +660,34 @@ export class AgyPool {
         reject(err);
       };
       const onAbort = () => {
-        try {
-          entry.child.kill("SIGTERM");
-        } catch {}
+        tryKill(entry.child, "SIGTERM");
         settleReject(createAbortError(opts.signal?.reason));
       };
 
       pending.timeoutTimer = setTimeout(() => {
         settleReject(new Error("agy timed out"));
-        try {
-          entry.child.kill("SIGTERM");
-        } catch {}
+        tryKill(entry.child, "SIGTERM");
       }, timeoutMs);
-      pending.timeoutTimer.unref?.();
+      pending.timeoutTimer.unref();
 
       if (opts.signal) opts.signal.addEventListener("abort", onAbort, { once: true });
 
-      // wrap original resolve/reject to cleanup abort/timeout
       const origResolve = pending.resolve;
       const origReject = pending.reject;
       pending.resolve = (v) => {
-        if (settled) return;
-        settled = true;
-        if (pending.timeoutTimer) clearTimeout(pending.timeoutTimer);
+        if (!gate.tryEnter()) return;
+        clearTimeout(pending.timeoutTimer);
         if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
         origResolve(v);
       };
       pending.reject = (e) => {
-        if (settled) return;
-        settled = true;
-        if (pending.timeoutTimer) clearTimeout(pending.timeoutTimer);
+        if (!gate.tryEnter()) return;
+        clearTimeout(pending.timeoutTimer);
         if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
         origReject(e);
       };
 
-      // write prompt
-      try {
-        const line = JSON.stringify({ event: "user", message: { content: prompt } }) + "\n";
-        const ok = entry.child.stdin!.write(line, (err) => {
-          if (err) settleReject(new Error(`failed to write to agy pool: ${err.message}`));
-        });
-        if (!ok) {
-          // ponytail: backpressure — large prompt fills kernel buffer; drain will unblock next queued turn
-          entry.child.stdin!.once("drain", () => {});
-        }
-      } catch (e) {
-        settleReject(new Error(`failed to write to agy pool: ${String(e)}`));
-      }
+      writePoolPrompt(entry.child.stdin as PoolStdin, prompt, settleReject);
     });
   }
 

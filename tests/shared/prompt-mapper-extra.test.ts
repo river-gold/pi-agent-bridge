@@ -32,4 +32,7 @@ describe("prompt-mapper extra", () => {
     const msg: Message = { role: "user", content: [{ type: "text", text: "  spaced  " }], timestamp: 1 };
     expect(mapPrompt([msg])).toBe("spaced");
   });
+  it("skips missing messages", () => {
+    expect(mapPrompt([undefined as unknown as Message])).toBe("");
+  });
 });
