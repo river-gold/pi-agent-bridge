@@ -101,7 +101,9 @@ describe("session-store comprehensive", () => {
 
     await sleep(1, undefined, undefined);
     await sleep(5, undefined, Date.now() + 50);
-    await expect(sleep(100, undefined, Date.now() - 10)).rejects.toThrow("Timed out acquiring lock");
+    await expect(sleep(100, undefined, Date.now() - 10)).rejects.toThrow(
+      "Timed out acquiring lock",
+    );
 
     const abortedAc = new AbortController();
     abortedAc.abort();
@@ -163,7 +165,11 @@ describe("session-store comprehensive", () => {
     await relDevMismatch();
 
     const pathStat = await stat(lockPath);
-    const relTokenMismatch = releaseLock(lockPath, { token: "wrong-token", dev: pathStat.dev, ino: pathStat.ino });
+    const relTokenMismatch = releaseLock(lockPath, {
+      token: "wrong-token",
+      dev: pathStat.dev,
+      ino: pathStat.ino,
+    });
     await relTokenMismatch();
 
     await rel!();
@@ -173,9 +179,9 @@ describe("session-store comprehensive", () => {
 
   it("acquireLock timeout and post-acquire cancellation", async () => {
     const dir = await mkdtemp(join(tmpdir(), "comp5-"));
-    await expect(
-      acquireLock(join(dir, "fail.lock"), {}, 1, async () => null),
-    ).rejects.toThrow("Timed out acquiring lock");
+    await expect(acquireLock(join(dir, "fail.lock"), {}, 1, async () => null)).rejects.toThrow(
+      "Timed out acquiring lock",
+    );
 
     let released = false;
     const acLock = new AbortController();

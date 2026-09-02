@@ -2,12 +2,24 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildThinkingLevelMap, discoverModels, loadAgyCatalog, resolveAgyModelId, toPiModels } from "../../src/agy/agy-models.ts";
+import {
+  buildThinkingLevelMap,
+  discoverModels,
+  loadAgyCatalog,
+  resolveAgyModelId,
+  toPiModels,
+} from "../../src/agy/agy-models.ts";
 
 describe("agy-models extra", () => {
   it("toPiModels sorting and defaults", () => {
     const { models } = toPiModels({
-      z: { name: "Z", variants: ["high", "low"], defaultVariant: "low", contextWindow: 1000, maxTokens: 500 },
+      z: {
+        name: "Z",
+        variants: ["high", "low"],
+        defaultVariant: "low",
+        contextWindow: 1000,
+        maxTokens: 500,
+      },
       a: { name: "A" },
     });
     expect(models[0].id).toBe("a");
@@ -22,15 +34,29 @@ describe("agy-models extra", () => {
     expect(m.low).toBe("low");
   });
   it("resolveAgyModelId edge empty variant", () => {
-    expect(resolveAgyModelId("m", "high", { variants: ["", ""], defaultVariant: "" })).toEqual({ model: "m" });
-    expect(resolveAgyModelId("m", undefined, { variants: ["high", "low"], defaultVariant: "high" })).toEqual({ model: "m-high" });
-    expect(resolveAgyModelId("m", "off", { variants: ["high", "low"], defaultVariant: "high" })).toEqual({ model: "m-high" });
-    expect(resolveAgyModelId("m", "unknown", { variants: ["high", "low"], defaultVariant: "high" })).toEqual({ model: "m-high" });
+    expect(resolveAgyModelId("m", "high", { variants: ["", ""], defaultVariant: "" })).toEqual({
+      model: "m",
+    });
+    expect(
+      resolveAgyModelId("m", undefined, { variants: ["high", "low"], defaultVariant: "high" }),
+    ).toEqual({ model: "m-high" });
+    expect(
+      resolveAgyModelId("m", "off", { variants: ["high", "low"], defaultVariant: "high" }),
+    ).toEqual({ model: "m-high" });
+    expect(
+      resolveAgyModelId("m", "unknown", { variants: ["high", "low"], defaultVariant: "high" }),
+    ).toEqual({ model: "m-high" });
   });
   it("loadAgyCatalog prefers antigravity", async () => {
     const dir = await mkdtemp(join(tmpdir(), "am-"));
     const fp = join(dir, "c.jsonc");
-    await writeFile(fp, JSON.stringify({ antigravity: { models: { ag1: { name: "AG1" } } }, agy: { models: { agy1: { name: "Agy1" } } } }));
+    await writeFile(
+      fp,
+      JSON.stringify({
+        antigravity: { models: { ag1: { name: "AG1" } } },
+        agy: { models: { agy1: { name: "Agy1" } } },
+      }),
+    );
     try {
       const cat = await loadAgyCatalog(fp);
       expect(Object.keys(cat)).toEqual(["ag1"]);

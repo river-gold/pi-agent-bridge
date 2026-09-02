@@ -54,7 +54,10 @@ export function timeoutError(): Error {
   return error;
 }
 
-export function throwIfCancelled(signal: AbortSignal | undefined, deadline: number | undefined): void {
+export function throwIfCancelled(
+  signal: AbortSignal | undefined,
+  deadline: number | undefined,
+): void {
   if (signal?.aborted) throw abortError(signal);
   if (deadline !== undefined && Date.now() >= deadline) throw timeoutError();
 }
@@ -123,7 +126,11 @@ export function parseLock(raw: string): LockPayload | null {
   }
 }
 
-export async function createLockFile(lockPath: string, token: string, openFn: (path: string, flags: string) => Promise<FileHandle> = open as any): Promise<LockIdentity | "exists"> {
+export async function createLockFile(
+  lockPath: string,
+  token: string,
+  openFn: (path: string, flags: string) => Promise<FileHandle> = open as any,
+): Promise<LockIdentity | "exists"> {
   let fh: FileHandle;
   try {
     fh = await openFn(lockPath, "wx");
@@ -203,7 +210,10 @@ export async function acquireLock(
   lockPath: string,
   options: AcquireLockOptions = {},
   maxAttempts: number = MAX_LOCK_ATTEMPTS,
-  tryAcquireLockFn: (path: string, opts: AcquireLockOptions) => Promise<(() => Promise<void>) | null> = tryAcquireLock,
+  tryAcquireLockFn: (
+    path: string,
+    opts: AcquireLockOptions,
+  ) => Promise<(() => Promise<void>) | null> = tryAcquireLock,
 ): Promise<() => Promise<void>> {
   let backoff = 1;
   const maxBackoff = 500;

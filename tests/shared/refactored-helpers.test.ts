@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { hasBoundary, extractTailDelta } from "../../src/agy/extract-delta.ts";
 import { isStale } from "../../src/shared/session-store.ts";
-import { parseAgyLine, handleAgentResponse, type AgentResponsePending } from "../../src/agy/agy-pool.ts";
+import {
+  parseAgyLine,
+  handleAgentResponse,
+  type AgentResponsePending,
+} from "../../src/agy/agy-pool.ts";
 
 describe("refactored helpers", () => {
   it("hasBoundary out of bounds", () => {
@@ -36,10 +40,17 @@ describe("refactored helpers", () => {
     expect(parseAgyLine("not json")).toBeNull();
     expect(parseAgyLine("{ bad")).toBeNull();
     expect(parseAgyLine(JSON.stringify({ foo: "bar" }))).toBeNull();
-    expect(parseAgyLine(JSON.stringify({ event: "init", conversation_id: "c1" }))).toEqual({ event: "init", conversation_id: "c1" });
+    expect(parseAgyLine(JSON.stringify({ event: "init", conversation_id: "c1" }))).toEqual({
+      event: "init",
+      conversation_id: "c1",
+    });
   });
   it("handleAgentResponse", () => {
-    const pending: AgentResponsePending = { accumulatedText: "hello", onEvent: () => {}, streamError: undefined };
+    const pending: AgentResponsePending = {
+      accumulatedText: "hello",
+      onEvent: () => {},
+      streamError: undefined,
+    };
     handleAgentResponse(pending, "agent_response", "hi", "ACTIVE", undefined);
     expect(pending.accumulatedText).toBe("hellohi");
     pending.accumulatedText = "hello";

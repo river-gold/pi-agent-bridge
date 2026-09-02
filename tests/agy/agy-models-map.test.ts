@@ -10,7 +10,9 @@ describe("mapConfigEntry", () => {
   });
   it("variants and defaultVariant fallback", () => {
     expect(mapConfigEntry("id", { variants: ["a", "b"] } as any).defaultVariant).toBe("a");
-    expect(mapConfigEntry("id", { variants: ["a"], defaultVariant: "x" } as any).defaultVariant).toBe("x");
+    expect(
+      mapConfigEntry("id", { variants: ["a"], defaultVariant: "x" } as any).defaultVariant,
+    ).toBe("x");
     expect(mapConfigEntry("id", {} as any).variants).toEqual([]);
   });
   it("contextWindow and maxTokens", () => {
@@ -18,6 +20,8 @@ describe("mapConfigEntry", () => {
     expect(mapConfigEntry("id", { contextWindow: 0 } as any).contextWindow).toBeUndefined();
     expect(mapConfigEntry("id", { maxTokens: 200 } as any).maxTokens).toBe(200);
     expect(mapConfigEntry("id", { maxTokens: 0 } as any).maxTokens).toBeUndefined();
-    expect(mapConfigEntry("id", { contextWindow: 100, maxTokens: 200 } as any)).toEqual(expect.objectContaining({ contextWindow: 100, maxTokens: 200 }));
+    expect(mapConfigEntry("id", { contextWindow: 100, maxTokens: 200 } as any)).toEqual(
+      expect.objectContaining({ contextWindow: 100, maxTokens: 200 }),
+    );
   });
 });

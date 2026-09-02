@@ -8,13 +8,21 @@ describe("prompt-mapper extra", () => {
   });
   it("cuts markers", () => {
     expect(mapPrompt([{ role: "user", content: "keep\n---\ncut", timestamp: 1 }])).toBe("keep");
-    expect(mapPrompt([{ role: "user", content: "keep\n**Output:** cut", timestamp: 1 }])).toBe("keep");
+    expect(mapPrompt([{ role: "user", content: "keep\n**Output:** cut", timestamp: 1 }])).toBe(
+      "keep",
+    );
     expect(mapPrompt([{ role: "user", content: "keep**Output:**cut", timestamp: 1 }])).toBe("keep");
-    expect(mapPrompt([{ role: "user", content: "keep## Acceptance Contract cut", timestamp: 1 }])).toBe("keep");
-    expect(mapPrompt([{ role: "user", content: "keep```acceptance-report cut", timestamp: 1 }])).toBe("keep");
+    expect(
+      mapPrompt([{ role: "user", content: "keep## Acceptance Contract cut", timestamp: 1 }]),
+    ).toBe("keep");
+    expect(
+      mapPrompt([{ role: "user", content: "keep```acceptance-report cut", timestamp: 1 }]),
+    ).toBe("keep");
   });
   it("extractText string content", () => {
-    expect(mapPrompt([{ role: "user", content: "string content", timestamp: 1 } as Message])).toBe("string content");
+    expect(mapPrompt([{ role: "user", content: "string content", timestamp: 1 } as Message])).toBe(
+      "string content",
+    );
   });
   it("extractText array filters non-text", () => {
     const msg: Message = {
@@ -29,7 +37,11 @@ describe("prompt-mapper extra", () => {
     expect(mapPrompt([msg])).toBe("a\nb");
   });
   it("non-user extractText returns empty via mapPrompt", () => {
-    const msg: Message = { role: "user", content: [{ type: "text", text: "  spaced  " }], timestamp: 1 };
+    const msg: Message = {
+      role: "user",
+      content: [{ type: "text", text: "  spaced  " }],
+      timestamp: 1,
+    };
     expect(mapPrompt([msg])).toBe("spaced");
   });
   it("skips missing messages", () => {

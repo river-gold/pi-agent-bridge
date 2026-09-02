@@ -15,7 +15,10 @@ describe("models-config extra", () => {
     expect(parseModelsConfig("x")).toEqual({});
   });
   it("parseModelsConfig ignores non-object agent", () => {
-    const cfg = parseModelsConfig({ agy: "bad", antigravity: null } as unknown as Record<string, unknown>);
+    const cfg = parseModelsConfig({ agy: "bad", antigravity: null } as unknown as Record<
+      string,
+      unknown
+    >);
     expect(cfg.agy).toBeUndefined();
     expect(cfg.antigravity).toBeUndefined();
   });
@@ -24,12 +27,24 @@ describe("models-config extra", () => {
     expect(cfg.agy?.models).toEqual({});
   });
   it("parseModelsConfig skips empty id and null entry", () => {
-    const cfg = parseModelsConfig({ agy: { models: { "  ": { name: "x" }, bad: null, good: { name: "G" } } } } as unknown as Record<string, unknown>);
+    const cfg = parseModelsConfig({
+      agy: { models: { "  ": { name: "x" }, bad: null, good: { name: "G" } } },
+    } as unknown as Record<string, unknown>);
     expect(Object.keys(cfg.agy!.models!)).toEqual(["good"]);
   });
   it("parseModelsConfig handles variants and numbers edge", () => {
     const cfg = parseModelsConfig({
-      agy: { models: { m1: { name: "  ", variants: ["", " ", "high"], defaultVariant: "  ", contextWindow: 0, maxTokens: -1 } } },
+      agy: {
+        models: {
+          m1: {
+            name: "  ",
+            variants: ["", " ", "high"],
+            defaultVariant: "  ",
+            contextWindow: 0,
+            maxTokens: -1,
+          },
+        },
+      },
     } as unknown as Record<string, unknown>);
     expect(cfg.agy?.models?.m1?.name).toBe("m1");
     expect(cfg.agy?.models?.m1?.variants).toEqual(["high"]);
@@ -37,13 +52,15 @@ describe("models-config extra", () => {
     expect(cfg.agy?.models?.m1?.contextWindow).toBeUndefined();
   });
   it("parseModelsConfig valid numbers", () => {
-    const cfg = parseModelsConfig({ agy: { models: { m1: { name: "M", contextWindow: 100.5, maxTokens: 200.9 } } } } as unknown as Record<string, unknown>);
+    const cfg = parseModelsConfig({
+      agy: { models: { m1: { name: "M", contextWindow: 100.5, maxTokens: 200.9 } } },
+    } as unknown as Record<string, unknown>);
     expect(cfg.agy?.models?.m1?.contextWindow).toBe(100);
     expect(cfg.agy?.models?.m1?.maxTokens).toBe(200);
   });
   it("resolveAgentCatalog missing", () => {
-    expect(resolveAgentCatalog("agy", {}, () => ({} as never))).toEqual({});
-    expect(resolveAgentCatalog("agy", { agy: {} } as never, () => ({} as never))).toEqual({});
+    expect(resolveAgentCatalog("agy", {}, () => ({}) as never)).toEqual({});
+    expect(resolveAgentCatalog("agy", { agy: {} } as never, () => ({}) as never)).toEqual({});
   });
   it("loadModelsConfigFile EISDIR throws", async () => {
     const dir = await mkdtemp(join(tmpdir(), "mc-"));

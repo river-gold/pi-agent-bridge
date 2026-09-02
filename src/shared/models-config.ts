@@ -97,7 +97,10 @@ interface LoadedModelsConfig {
   exists: boolean;
 }
 
-export async function readModelsConfigFile(configPath: string, readFileFn: (path: string, encoding: string) => Promise<string> = readFile as any): Promise<LoadedModelsConfig> {
+export async function readModelsConfigFile(
+  configPath: string,
+  readFileFn: (path: string, encoding: string) => Promise<string> = readFile as any,
+): Promise<LoadedModelsConfig> {
   let text: string;
   try {
     text = await readFileFn(configPath, "utf-8");

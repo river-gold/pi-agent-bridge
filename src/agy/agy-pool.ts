@@ -186,7 +186,9 @@ export function handleAgentResponse(
         pending.onEvent?.({ type: "text", text: suffix });
       }
     } else if (!pending.streamError) {
-      pending.streamError = new Error("Inconsistent stream: DONE snapshot does not match accumulated text");
+      pending.streamError = new Error(
+        "Inconsistent stream: DONE snapshot does not match accumulated text",
+      );
     }
     return;
   }

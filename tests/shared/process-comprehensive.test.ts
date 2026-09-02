@@ -1,15 +1,36 @@
 import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "node:events";
-import { disposeChild, tryKill, isAlreadyExited, tryEnd, terminateChild } from "../../src/shared/process.ts";
+import {
+  disposeChild,
+  tryKill,
+  isAlreadyExited,
+  tryEnd,
+  terminateChild,
+} from "../../src/shared/process.ts";
 import type { ChildProcess } from "node:child_process";
 
 describe("process comprehensive", () => {
   it("isAlreadyExited and tryKill", () => {
-    expect(isAlreadyExited({ exitCode: 0, signalCode: null } as unknown as ChildProcess)).toBe(true);
-    expect(isAlreadyExited({ exitCode: null, signalCode: "SIGTERM" } as unknown as ChildProcess)).toBe(true);
-    expect(isAlreadyExited({ exitCode: null, signalCode: null } as unknown as ChildProcess)).toBe(false);
+    expect(isAlreadyExited({ exitCode: 0, signalCode: null } as unknown as ChildProcess)).toBe(
+      true,
+    );
+    expect(
+      isAlreadyExited({ exitCode: null, signalCode: "SIGTERM" } as unknown as ChildProcess),
+    ).toBe(true);
+    expect(isAlreadyExited({ exitCode: null, signalCode: null } as unknown as ChildProcess)).toBe(
+      false,
+    );
     expect(tryKill({ kill: () => true } as unknown as ChildProcess, "SIGKILL")).toBe(true);
-    expect(tryKill({ kill: () => { throw new Error("e"); } } as unknown as ChildProcess, "SIGKILL")).toBe(false);
+    expect(
+      tryKill(
+        {
+          kill: () => {
+            throw new Error("e");
+          },
+        } as unknown as ChildProcess,
+        "SIGKILL",
+      ),
+    ).toBe(false);
   });
   it("disposeChild with tryKill false", async () => {
     const child = {
@@ -18,16 +39,32 @@ describe("process comprehensive", () => {
       stderr: { destroy: () => {} },
       exitCode: null,
       signalCode: null,
-      once: (ev: string, cb: () => void) => { setTimeout(cb, 10); },
-      kill: () => { throw new Error("kill fail"); },
+      once: (ev: string, cb: () => void) => {
+        setTimeout(cb, 10);
+      },
+      kill: () => {
+        throw new Error("kill fail");
+      },
     } as unknown as ChildProcess;
     await disposeChild(child);
   });
   it("destroyStream swallows destroy errors", async () => {
     const child = {
-      stdin: { destroy: () => { throw new Error("stdin"); } },
-      stdout: { destroy: () => { throw new Error("stdout"); } },
-      stderr: { destroy: () => { throw new Error("stderr"); } },
+      stdin: {
+        destroy: () => {
+          throw new Error("stdin");
+        },
+      },
+      stdout: {
+        destroy: () => {
+          throw new Error("stdout");
+        },
+      },
+      stderr: {
+        destroy: () => {
+          throw new Error("stderr");
+        },
+      },
       exitCode: 0,
       signalCode: null,
       once: () => {},
