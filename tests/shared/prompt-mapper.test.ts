@@ -1,6 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { mapPrompt } from "../../src/agy/prompt-mapper.ts";
+import { mapPrompt, withCompactSummaryPrefix } from "../../src/agy/prompt-mapper.ts";
 
 const assistant = (text: string): Message => ({
   role: "assistant",
@@ -53,5 +53,21 @@ describe("mapPrompt", () => {
 
   it("returns empty when no user message", () => {
     expect(mapPrompt([assistant("x")])).toBe("");
+  });
+});
+
+describe("withCompactSummaryPrefix", () => {
+  it("returns prompt unchanged when summary is empty", () => {
+    expect(withCompactSummaryPrefix("do it", undefined)).toBe("do it");
+    expect(withCompactSummaryPrefix("do it", "  ")).toBe("do it");
+  });
+  it("prepends compacted summary", () => {
+    expect(withCompactSummaryPrefix("do it", "Did X.")).toBe(
+      "[Previous session summary]\nDid X.\n\n---\n\ndo it",
+    );
+  });
+  it("handles empty prompt", () => {
+    expect(withCompactSummaryPrefix("", "Did X.")).toBe("[Previous session summary]\nDid X.");
+    expect(withCompactSummaryPrefix("", undefined)).toBe("");
   });
 });

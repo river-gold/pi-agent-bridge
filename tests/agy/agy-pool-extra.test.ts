@@ -264,6 +264,26 @@ describe("agy-pool extra and edge cases", () => {
     expect(pending3.streamError).toBe(firstErr);
   });
 
+  it("disposeKey removes entry and reports existence", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pool-disposekey-"));
+    const wrap = await makeMock(
+      dir,
+      `console.log(JSON.stringify({event:"result",result:{status:"SUCCESS",response:"ok",conversation_id:conv}}));`,
+    );
+    const pool = new AgyPool({ binary: wrap, timeoutMs: 2000 });
+    try {
+      expect(await pool.disposeKey(compositeKey("missing", "/tmp"))).toBe(false);
+      const handle = pool.acquire("compacted", "/tmp");
+      expect(pool.has(handle.key)).toBe(true);
+      expect(await pool.disposeKey(handle.key)).toBe(true);
+      expect(pool.has(handle.key)).toBe(false);
+      expect(await pool.disposeKey(handle.key)).toBe(false);
+    } finally {
+      await pool.disposeAll();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("acquireForSession, acquireByKey, and handle getters", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pool-getters-"));
     const wrap = await makeMock(
@@ -553,7 +573,10 @@ rl.on("line", (line)=>{
       const handle = pool.acquire("boot", "/tmp");
       await vi.waitFor(
         () => {
-          if (!handle.conversationId) throw new Error("boot conv missing");
+          // init sets "boot", the boot step_update overwrites with "boot-step".
+          // Waiting for "boot-step" guarantees the boot noise is fully consumed
+          // before pending exists; otherwise the "ignored" delta races into the turn.
+          if (handle.conversationId !== "boot-step") throw new Error("boot noise not yet applied");
         },
         { timeout: 5000 },
       );

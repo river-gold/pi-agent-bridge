@@ -714,6 +714,13 @@ export class AgyPool {
       this.entries.delete(entry.key);
     });
   }
+
+  /** Dispose the entry for a composite key. Returns false when no entry exists. */
+  disposeKey(key: string): Promise<boolean> {
+    const entry = this.entries.get(key);
+    if (!entry) return Promise.resolve(false);
+    return this.disposeHandle(entry).then(() => true);
+  }
 }
 
 export class PooledHandle {

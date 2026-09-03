@@ -16,6 +16,17 @@ export function mapPrompt(messages: Message[]): string {
 }
 
 /**
+ * Prepend a pi compaction summary to seed a fresh agy session after reset.
+ * Returns prompt unchanged when summary is empty.
+ */
+export function withCompactSummaryPrefix(prompt: string, summary?: string): string {
+  const body = summary?.trim();
+  if (!body) return prompt;
+  if (!prompt) return `[Previous session summary]\n${body}`;
+  return `[Previous session summary]\n${body}\n\n---\n\n${prompt}`;
+}
+
+/**
  * Build prompt with gap injection for agy pool.
  * If the last antigravity turn exists and there are messages after it (from other providers),
  * prepend serialized gap as context header + latest user request.

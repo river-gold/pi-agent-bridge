@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { discoverModels } from "../src/agy/agy-models.ts";
 import { loadConfig } from "../src/agy/config.ts";
 import { SessionStore } from "../src/agy/session-store.ts";
-import { mapPromptWithGap } from "../src/agy/prompt-mapper.ts";
+import { mapPromptWithGap, withCompactSummaryPrefix } from "../src/agy/prompt-mapper.ts";
 import { resolveAgyModelId, type AgyModelMeta } from "../src/agy/agy-models.ts";
 import { findNewConversation, snapshot } from "../src/agy/conversation-tracker.ts";
 import { extractDelta } from "../src/agy/extract-delta.ts";
@@ -48,6 +48,39 @@ interface PoolRuntime {
 }
 
 const prevOutputs = new Map<string, string>();
+
+/** One-shot compaction summaries, keyed by poolKey. Consumed on the next turn after reset. */
+const compactSeeds = new Map<string, string>();
+
+export function setCompactSeed(poolKey: string, summary: string): void {
+  const body = summary?.trim();
+  if (!body) return;
+  compactSeeds.set(poolKey, body);
+}
+
+export function consumeCompactSeed(poolKey: string): string | undefined {
+  const seed = compactSeeds.get(poolKey);
+  if (seed === undefined) return undefined;
+  compactSeeds.delete(poolKey);
+  return seed;
+}
+
+export interface CompactionResetDeps {
+  disposeKey: (key: string) => Promise<unknown>;
+  set: (key: string, conversationId: string | null, prevOutput?: string) => Promise<unknown>;
+}
+
+/** Drop agy-side state for a compacted session and stash pi's summary as a one-shot seed. */
+export async function resetPoolForCompaction(
+  deps: CompactionResetDeps,
+  poolKey: string,
+  summary: string | undefined,
+): Promise<void> {
+  await deps.disposeKey(poolKey).catch(() => false);
+  await deps.set(poolKey, null, "").catch(() => undefined);
+  prevOutputs.delete(poolKey);
+  setCompactSeed(poolKey, summary ?? "");
+}
 
 function emptyUsage() {
   return {
@@ -123,7 +156,9 @@ export function streamAgyPool(
       const before = conversationId ? null : await snapshot(runtime.config.conversationsDir);
       remainingTimeout();
 
-      const prompt = mapPromptWithGap(context.messages);
+      const basePrompt = mapPromptWithGap(context.messages);
+      const seed = consumeCompactSeed(poolKey);
+      const prompt = seed ? withCompactSummaryPrefix(basePrompt, seed) : basePrompt;
       remainingTimeout();
       if (!prompt.trim()) throw new Error("agy turn has no user text");
 
@@ -332,5 +367,23 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     cwd = ctx.cwd;
+  });
+
+  pi.on("session_compact", async (event, ctx) => {
+    // pi history is now summary-only: drop the agy-side conversation so the
+    // next turn starts fresh, seeded with pi's summary.
+    try {
+      const key = compositeKey(ctx.sessionManager.getSessionId(), ctx.cwd);
+      await resetPoolForCompaction(
+        {
+          disposeKey: (k) => pool.disposeKey(k),
+          set: (k, c, p) => runtime.store.set(k, c, p),
+        },
+        key,
+        event.compactionEntry.summary,
+      );
+    } catch {
+      // compaction already succeeded; bridge reset is best-effort only
+    }
   });
 }
