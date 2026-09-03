@@ -25,7 +25,13 @@ describe("models-config extra", () => {
   });
   it("parseModelsConfig skips empty id and null entry", () => {
     const cfg = parseModelsConfig({
-      agy: { models: { "  ": { name: "x" }, bad: null, good: { name: "G" } } },
+      agy: {
+        models: {
+          "  ": { modelId: "x-model", name: "x" },
+          bad: null,
+          good: { modelId: "g-model", name: "G" },
+        },
+      },
     });
     expect(Object.keys(cfg.agy!.models!)).toEqual(["good"]);
   });
@@ -34,6 +40,7 @@ describe("models-config extra", () => {
       agy: {
         models: {
           m1: {
+            modelId: "m1-model",
             name: "  ",
             variants: ["", " ", "high"],
             defaultVariant: "  ",
@@ -50,7 +57,9 @@ describe("models-config extra", () => {
   });
   it("parseModelsConfig valid numbers", () => {
     const cfg = parseModelsConfig({
-      agy: { models: { m1: { name: "M", contextWindow: 100.5, maxTokens: 200.9 } } },
+      agy: {
+        models: { m1: { modelId: "m1-model", name: "M", contextWindow: 100.5, maxTokens: 200.9 } },
+      },
     });
     expect(cfg.agy?.models?.m1?.contextWindow).toBe(100);
     expect(cfg.agy?.models?.m1?.maxTokens).toBe(200);

@@ -110,10 +110,18 @@ describe("models-config", () => {
     const explicitPath = join(root, "explicit.jsonc");
     await mkdir(project, { recursive: true });
     try {
-      await writeModelsConfig(project, { agy: { models: { project: {} } } });
-      await writeModelsConfig(home, { agy: { models: { home: {} } } });
-      await writeFile(envPath, JSON.stringify({ agy: { models: { env: {} } } }));
-      await writeFile(explicitPath, JSON.stringify({ agy: { models: { explicit: {} } } }));
+      await writeModelsConfig(project, {
+        agy: { models: { project: { modelId: "project-model" } } },
+      });
+      await writeModelsConfig(home, { agy: { models: { home: { modelId: "home-model" } } } });
+      await writeFile(
+        envPath,
+        JSON.stringify({ agy: { models: { env: { modelId: "env-model" } } } }),
+      );
+      await writeFile(
+        explicitPath,
+        JSON.stringify({ agy: { models: { explicit: { modelId: "explicit-model" } } } }),
+      );
 
       const explicit = await loadModelsConfigInChild({
         cwd: project,
@@ -204,7 +212,7 @@ describe("models-config", () => {
     await mkdir(project, { recursive: true });
     try {
       const projectPath = await writeModelsConfig(project, {});
-      await writeModelsConfig(home, { agy: { models: { home: {} } } });
+      await writeModelsConfig(home, { agy: { models: { home: { modelId: "home-model" } } } });
       await writeFile(projectPath, "{ malformed", "utf-8");
 
       const malformed = await loadModelsConfigInChild({ cwd: project, home });
@@ -228,7 +236,7 @@ describe("models-config", () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "pi-models-same-path-")));
     try {
       const path = await writeModelsConfig(root, {
-        agy: { models: { same: { name: "Same path" } } },
+        agy: { models: { same: { modelId: "same-model", name: "Same path" } } },
       });
       const present = await loadModelsConfigInChild({ cwd: root, home: root });
       assertLoaded(present);
@@ -248,7 +256,12 @@ describe("models-config", () => {
     const cfg = parseModelsConfig({
       agy: {
         models: {
-          m1: { name: "M1", variants: ["high", "low"], defaultVariant: "high" },
+          m1: {
+            modelId: "m1-model",
+            name: "M1",
+            variants: ["high", "low"],
+            defaultVariant: "high",
+          },
         },
       },
       ignored: { models: { x: {} } },
@@ -266,9 +279,13 @@ describe("models-config", () => {
   });
 
   it("resolveAgentCatalog maps section models", () => {
-    const out = resolveAgentCatalog("agy", { agy: { models: { b: { name: "B" } } } }, (id, e) => ({
-      name: e.name ?? id,
-    }));
+    const out = resolveAgentCatalog(
+      "agy",
+      { agy: { models: { b: { modelId: "b-model", name: "B" } } } },
+      (id, e) => ({
+        name: e.name ?? id,
+      }),
+    );
     expect(out).toEqual({ b: { name: "B" } });
   });
 
@@ -282,6 +299,7 @@ describe("models-config", () => {
           agy: {
             models: {
               "custom-agy": {
+                modelId: "custom-agy-model",
                 name: "Custom Agy",
                 variants: ["high"],
                 defaultVariant: "high",
@@ -314,6 +332,7 @@ describe("models-config", () => {
   "agy": {
     "models": {
       "jsonc-agy": {
+        "modelId": "jsonc-agy-model",
         "name": "JSONC Agy",
         "variants": ["high", "low",],
         "defaultVariant": "high",

@@ -18,7 +18,10 @@ describe("models-config homedir", () => {
     // ensure file exists at dir/.pi/agent/pi-agent-bridge.jsonc
     const cfgPath = join(dir, ".pi", "agent", "pi-agent-bridge.jsonc");
     await mkdir(join(dir, ".pi", "agent"), { recursive: true });
-    await writeFile(cfgPath, JSON.stringify({ agy: { models: { m1: { name: "M1" } } } }));
+    await writeFile(
+      cfgPath,
+      JSON.stringify({ agy: { models: { m1: { modelId: "m1-model", name: "M1" } } } }),
+    );
     const loaded = await loadModelsConfigFile();
     expect(loaded.path.endsWith(".pi/agent/pi-agent-bridge.jsonc")).toBe(true);
     expect(loaded.exists).toBe(true);
@@ -37,7 +40,10 @@ describe("models-config homedir", () => {
     process.chdir(proj);
     const homePath = join(home, ".pi", "agent", "pi-agent-bridge.jsonc");
     await mkdir(join(home, ".pi", "agent"), { recursive: true });
-    await writeFile(homePath, JSON.stringify({ agy: { models: { homeM: {} } } }));
+    await writeFile(
+      homePath,
+      JSON.stringify({ agy: { models: { homeM: { modelId: "homeM-model" } } } }),
+    );
     const loaded = await loadModelsConfigFile();
     expect(loaded.path).toBe(homePath);
     expect(loaded.config.agy?.models?.homeM).toBeDefined();
