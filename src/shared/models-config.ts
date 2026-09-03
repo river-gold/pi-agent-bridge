@@ -99,16 +99,13 @@ interface LoadedModelsConfig {
 
 export async function readModelsConfigFile(
   configPath: string,
-  readFileFn: (path: string, encoding: string) => Promise<string> = readFile as any,
+  readFileFn: typeof readFile = readFile,
 ): Promise<LoadedModelsConfig> {
   let text: string;
   try {
     text = await readFileFn(configPath, "utf-8");
-  } catch (error) {
-    const code =
-      error && typeof error === "object" && "code" in error
-        ? (error as { code?: unknown }).code
-        : undefined;
+  } catch (error: unknown) {
+    const code = isPlainObject(error) && "code" in error ? error.code : undefined;
     if (code === "ENOENT") return { path: configPath, config: {}, exists: false };
     throw error;
   }

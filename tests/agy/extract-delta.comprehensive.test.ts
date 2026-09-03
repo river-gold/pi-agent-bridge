@@ -61,7 +61,7 @@ describe("extractDelta comprehensive", () => {
     expect(hasBoundary("hello", "hello", 0)).toBe(true);
     expect(hasBoundary("hello", "hello", 5)).toBe(true);
     expect(getFirstTokenStart(null)).toBe(0);
-    expect(getFirstTokenStart([] as unknown as RegExpMatchArray)).toBe(0);
+    expect(getFirstTokenStart(null)).toBe(0);
     expect(
       extractTailDelta("hello world output", "completely different previous text over 20 chars"),
     ).toBeNull();

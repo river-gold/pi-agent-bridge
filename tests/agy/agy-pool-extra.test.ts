@@ -237,9 +237,11 @@ describe("agy-pool extra and edge cases", () => {
     expect(pending.accumulatedText).toBe("hello world! extra");
     expect(pending.onEvent).toHaveBeenCalledWith({ type: "text", text: " extra" });
 
-    const callCount = (pending.onEvent as ReturnType<typeof vi.fn>).mock.calls.length;
+    const onEventMock = vi.fn();
+    pending.onEvent = onEventMock;
+    const callCount = onEventMock.mock.calls.length;
     handleAgentResponse(pending, "agent_response", "hello world! extra", undefined, "DONE");
-    expect((pending.onEvent as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callCount);
+    expect(onEventMock.mock.calls.length).toBe(callCount);
 
     handleAgentResponse(pending, "agent_response", "completely different", undefined, "DONE");
     expect(pending.streamError).toBeInstanceOf(Error);

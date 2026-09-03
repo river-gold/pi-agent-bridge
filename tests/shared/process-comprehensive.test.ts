@@ -7,49 +7,42 @@ import {
   tryEnd,
   terminateChild,
 } from "../../src/shared/process.ts";
-import type { ChildProcess } from "node:child_process";
 
 describe("process comprehensive", () => {
   it("isAlreadyExited and tryKill", () => {
-    expect(isAlreadyExited({ exitCode: 0, signalCode: null } as unknown as ChildProcess)).toBe(
-      true,
-    );
-    expect(
-      isAlreadyExited({ exitCode: null, signalCode: "SIGTERM" } as unknown as ChildProcess),
-    ).toBe(true);
-    expect(isAlreadyExited({ exitCode: null, signalCode: null } as unknown as ChildProcess)).toBe(
-      false,
-    );
-    expect(tryKill({ kill: () => true } as unknown as ChildProcess, "SIGKILL")).toBe(true);
+    expect(isAlreadyExited({ exitCode: 0, signalCode: null })).toBe(true);
+    expect(isAlreadyExited({ exitCode: null, signalCode: "SIGTERM" })).toBe(true);
+    expect(isAlreadyExited({ exitCode: null, signalCode: null })).toBe(false);
+    expect(tryKill({ kill: () => true }, "SIGKILL")).toBe(true);
     expect(
       tryKill(
         {
           kill: () => {
             throw new Error("e");
           },
-        } as unknown as ChildProcess,
+        },
         "SIGKILL",
       ),
     ).toBe(false);
   });
   it("disposeChild with tryKill false", async () => {
-    const child = {
+    const child = Object.assign(new EventEmitter(), {
       stdin: { destroy: () => {} },
       stdout: { destroy: () => {} },
       stderr: { destroy: () => {} },
       exitCode: null,
       signalCode: null,
-      once: (ev: string, cb: () => void) => {
+      once: (_ev: string, cb: () => void) => {
         setTimeout(cb, 10);
       },
       kill: () => {
         throw new Error("kill fail");
       },
-    } as unknown as ChildProcess;
+    });
     await disposeChild(child);
   });
   it("destroyStream swallows destroy errors", async () => {
-    const child = {
+    const child = Object.assign(new EventEmitter(), {
       stdin: {
         destroy: () => {
           throw new Error("stdin");
@@ -69,11 +62,11 @@ describe("process comprehensive", () => {
       signalCode: null,
       once: () => {},
       kill: () => true,
-    } as unknown as ChildProcess;
+    });
     await disposeChild(child);
   });
   it("disposeChild already exited", async () => {
-    const child = {
+    const child = Object.assign(new EventEmitter(), {
       stdin: { destroy: () => {} },
       stdout: { destroy: () => {} },
       stderr: { destroy: () => {} },
@@ -81,7 +74,7 @@ describe("process comprehensive", () => {
       signalCode: null,
       once: () => {},
       kill: () => true,
-    } as unknown as ChildProcess;
+    });
     await disposeChild(child);
   });
   it("tryEnd covers null, success, and throw", () => {
@@ -97,27 +90,28 @@ describe("process comprehensive", () => {
     });
   });
   it("terminateChild already exited", async () => {
-    const child = new EventEmitter() as unknown as ChildProcess;
-    (child as { exitCode: number | null }).exitCode = 0;
-    (child as { signalCode: NodeJS.Signals | null }).signalCode = null;
-    (child as { kill: () => boolean }).kill = vi.fn();
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: 0,
+      signalCode: null,
+      kill: vi.fn(),
+    });
     await terminateChild(child, 20, 20);
-    expect((child as { kill: ReturnType<typeof vi.fn> }).kill).not.toHaveBeenCalled();
+    expect(vi.mocked(child.kill).mock.calls.length).toBe(0);
   });
   it("terminateChild SIGTERM then SIGKILL", async () => {
     vi.useFakeTimers();
     try {
-      const child = new EventEmitter() as unknown as ChildProcess;
-      (child as { exitCode: number | null }).exitCode = null;
-      (child as { signalCode: NodeJS.Signals | null }).signalCode = null;
-      const kill = vi.fn();
-      (child as { kill: (s: NodeJS.Signals) => boolean }).kill = kill;
+      const child = Object.assign(new EventEmitter(), {
+        exitCode: null,
+        signalCode: null,
+        kill: vi.fn(),
+      });
       const p = terminateChild(child, 2000, 1000);
       await vi.advanceTimersByTimeAsync(2000);
-      expect(kill).toHaveBeenCalledWith("SIGTERM");
+      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
       await vi.advanceTimersByTimeAsync(1000);
-      expect(kill).toHaveBeenCalledWith("SIGKILL");
-      (child as EventEmitter).emit("close");
+      expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+      child.emit("close");
       await p;
     } finally {
       vi.useRealTimers();
@@ -126,17 +120,17 @@ describe("process comprehensive", () => {
   it("terminateChild skips SIGKILL after SIGTERM exit", async () => {
     vi.useFakeTimers();
     try {
-      const child = new EventEmitter() as unknown as ChildProcess;
-      (child as { exitCode: number | null }).exitCode = null;
-      (child as { signalCode: NodeJS.Signals | null }).signalCode = null;
-      const kill = vi.fn();
-      (child as { kill: (s: NodeJS.Signals) => boolean }).kill = kill;
+      const child = Object.assign(new EventEmitter(), {
+        exitCode: null,
+        signalCode: null,
+        kill: vi.fn(),
+      });
       const p = terminateChild(child, 2000, 1000);
       await vi.advanceTimersByTimeAsync(2000);
-      expect(kill).toHaveBeenCalledWith("SIGTERM");
-      (child as { exitCode: number | null }).exitCode = 0;
+      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+      Object.assign(child, { exitCode: 0 });
       await vi.advanceTimersByTimeAsync(1000);
-      expect(kill).not.toHaveBeenCalledWith("SIGKILL");
+      expect(child.kill).not.toHaveBeenCalledWith("SIGKILL");
       await p;
     } finally {
       vi.useRealTimers();

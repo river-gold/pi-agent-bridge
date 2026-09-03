@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile, readFile, rm, mkdir, stat, unlink } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SessionStore, tryAcquireLock } from "../../src/shared/session-store.ts";
 
 describe("session-store extra", () => {

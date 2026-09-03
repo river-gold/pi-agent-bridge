@@ -89,11 +89,15 @@ export function pickString(primary: unknown, fallback: unknown): string | undefi
   return undefined;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
 export function parseAgyLine(rawLine: string): Record<string, unknown> | null {
   const line = rawLine.trim();
   if (!line.startsWith("{")) return null;
   try {
-    const parsed = JSON.parse(line) as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(line);
+    if (!isRecord(parsed)) return null;
     if (typeof parsed.event !== "string") return null;
     return parsed;
   } catch {
@@ -124,10 +128,7 @@ export function createLatch(): { run: (fn: () => void) => void } {
   };
 }
 
-export function poolCloseMessage(
-  code: number | null,
-  signal: NodeJS.Signals | string | null,
-): string {
+export function poolCloseMessage(code: number | null, signal: string | null): string {
   if (signal) return `agy pool process killed by ${signal}`;
   return `agy pool process exited ${code ?? "unknown"}`;
 }
@@ -150,7 +151,10 @@ export interface PoolStdin {
 }
 
 export function writePoolPrompt(
-  stdin: PoolStdin,
+  stdin: {
+    write: (chunk: string, cb?: (err?: Error | null) => void) => boolean;
+    once?: (event: string, listener: () => void) => unknown;
+  },
   prompt: string,
   onWriteError: (error: Error) => void,
 ): void {
@@ -307,6 +311,10 @@ export class AgyPool {
     return this.entries.has(key);
   }
 
+  getEntryForTest(key: string): PoolEntry | undefined {
+    return this.entries.get(key);
+  }
+
   // -- internal --
 
   private ensureEntry(
@@ -437,7 +445,8 @@ export class AgyPool {
     }
 
     if (parsed.event === "step_update") {
-      const step = (parsed.step_update ?? parsed) as Record<string, unknown>;
+      const stepRaw = parsed.step_update ?? parsed;
+      const step = isRecord(stepRaw) ? stepRaw : {};
       const stepConv = pickString(step.conversation_id, parsed.conversation_id);
       if (stepConv) {
         entry.conversationId = stepConv;
@@ -454,9 +463,11 @@ export class AgyPool {
       handleAgentResponse(pending, stepType, textDelta, state, status);
 
       if (stepType === "tool" && typeof step.tool_name === "string" && pending) {
-        const toolName = step.tool_name as string;
-        const toolInfo = (step.tool_info ?? {}) as Record<string, unknown>;
-        const params = (toolInfo.parameters ?? {}) as Record<string, unknown>;
+        const toolName = step.tool_name;
+        const toolInfoRaw = step.tool_info ?? {};
+        const toolInfo = isRecord(toolInfoRaw) ? toolInfoRaw : {};
+        const paramsRaw = toolInfo.parameters ?? {};
+        const params = isRecord(paramsRaw) ? paramsRaw : {};
         const output = typeof toolInfo.output === "string" ? toolInfo.output : undefined;
         const stepIndex = typeof step.step_index === "number" ? step.step_index : Date.now();
         const toolId = `agy-tool-${stepIndex}-${toolName}`;
@@ -483,7 +494,8 @@ export class AgyPool {
     if (parsed.event !== "result") return;
     if (!pending) return;
     pending.sawValidEvent = true;
-    const result = (parsed.result ?? parsed) as Record<string, unknown>;
+    const resultRaw = parsed.result ?? parsed;
+    const result = isRecord(resultRaw) ? resultRaw : {};
     if (typeof parsed.conversation_id === "string") {
       entry.conversationId = parsed.conversation_id;
       pending.conversationId = parsed.conversation_id;
@@ -496,7 +508,7 @@ export class AgyPool {
     pending.resultStatus = typeof result.status === "string" ? result.status : undefined;
     pending.resultResponse = typeof result.response === "string" ? result.response : undefined;
     pending.resultError = typeof result.error === "string" ? result.error : undefined;
-    const ru = result.usage as Record<string, unknown> | undefined;
+    const ru = isRecord(result.usage) ? result.usage : undefined;
     if (
       ru &&
       typeof ru.input_tokens === "number" &&
@@ -586,7 +598,7 @@ export class AgyPool {
   private enforceMaxEntries() {
     if (this.entries.size <= this.maxEntries) return;
     // evict LRU
-    const sorted = [...this.entries.values()].sort((a, b) => a.lastUsed - b.lastUsed);
+    const sorted = [...this.entries.values()].toSorted((a, b) => a.lastUsed - b.lastUsed);
     const toEvict = sorted.slice(0, this.entries.size - this.maxEntries);
     for (const e of toEvict) {
       void this.disposeEntry(e);
@@ -610,7 +622,7 @@ export class AgyPool {
   }
 
   // Called by handle to execute a prompt
-  _exec(entry: PoolEntry, prompt: string, opts: PoolPromptOptions = {}): Promise<RunPooledResult> {
+  exec(entry: PoolEntry, prompt: string, opts: PoolPromptOptions = {}): Promise<RunPooledResult> {
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
 
     // chain onto queue to serialize
@@ -693,11 +705,11 @@ export class AgyPool {
         });
       };
 
-      writePoolPrompt(entry.child.stdin as PoolStdin, prompt, settleReject);
+      if (entry.child.stdin) writePoolPrompt(entry.child.stdin, prompt, settleReject);
     });
   }
 
-  _disposeHandle(entry: PoolEntry): Promise<void> {
+  disposeHandle(entry: PoolEntry): Promise<void> {
     return this.disposeEntry(entry).then(() => {
       this.entries.delete(entry.key);
     });
@@ -723,10 +735,10 @@ export class PooledHandle {
   }
 
   prompt(prompt: string, opts?: PoolPromptOptions): Promise<RunPooledResult> {
-    return this.pool._exec(this.entry, prompt, opts);
+    return this.pool.exec(this.entry, prompt, opts);
   }
 
   dispose(): Promise<void> {
-    return this.pool._disposeHandle(this.entry);
+    return this.pool.disposeHandle(this.entry);
   }
 }

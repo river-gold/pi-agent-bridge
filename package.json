@@ -23,7 +23,12 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/*.test.ts",
     "test:e2e": "vitest run tests/e2e",
-    "typecheck": "tsc --noEmit"
+    "tsc": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --format stylish",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.3.0",

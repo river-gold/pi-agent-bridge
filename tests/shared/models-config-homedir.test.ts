@@ -1,7 +1,6 @@
 import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as os from "node:os";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { loadModelsConfigFile } from "../../src/shared/models-config.ts";
 

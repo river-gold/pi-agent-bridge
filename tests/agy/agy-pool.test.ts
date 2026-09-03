@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgyPool, compositeKey, hashCwd } from "../../src/agy/agy-pool.ts";
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
 
 /** helper: delay */
 function delay(ms: number): Promise<void> {
@@ -26,8 +29,9 @@ async function readSpawnPids(logPath: string): Promise<number[]> {
       .filter(Boolean)
       .map((l) => {
         try {
-          const j = JSON.parse(l);
-          return Number(j.pid);
+          const parsed: unknown = JSON.parse(l);
+          if (!isRecord(parsed)) return NaN;
+          return Number(parsed.pid);
         } catch {
           return NaN;
         }
@@ -45,8 +49,12 @@ async function readSpawnArgs(logPath: string): Promise<string[][]> {
       .filter(Boolean)
       .map((l) => {
         try {
-          const j = JSON.parse(l);
-          return Array.isArray(j.args) ? (j.args as string[]) : [];
+          const parsed: unknown = JSON.parse(l);
+          if (!isRecord(parsed)) return [];
+          const args = parsed.args;
+          if (Array.isArray(args) && args.every((v): v is string => typeof v === "string"))
+            return args;
+          return [];
         } catch {
           return [];
         }
@@ -315,12 +323,9 @@ describe("agy-pool (long-lived)", () => {
       expect(await spawnCount(spawnLog)).toBe(1);
       expect(pool.has(key)).toBeTruthy();
       // kill underlying child
-      const entry = (
-        pool as unknown as {
-          entries: Map<string, { child: { kill: (sig: string) => void } }>;
-        }
-      ).entries.get(key);
+      const entry = pool.getEntryForTest(key);
       expect(entry).toBeTruthy();
+      if (!entry) throw new Error("missing entry");
       try {
         entry.child.kill("SIGKILL");
       } catch {}
@@ -374,7 +379,7 @@ describe("agy-pool (long-lived)", () => {
         await p;
         expect.fail("should have thrown");
       } catch (err) {
-        expect((err as Error).name).toBe("AbortError");
+        expect(err instanceof Error ? err.name : "").toBe("AbortError");
       }
       // give pool time to evict and kill old child
       await delay(350);
@@ -392,7 +397,7 @@ describe("agy-pool (long-lived)", () => {
         await pool.acquire("abort-sess2", cwd).prompt("x", { signal: ac2.signal });
         expect.fail("should have thrown");
       } catch (err) {
-        expect((err as Error).name).toBe("AbortError");
+        expect(err instanceof Error ? err.name : "").toBe("AbortError");
       }
     } finally {
       await pool.disposeAll().catch(() => {});
@@ -425,7 +430,7 @@ describe("agy-pool (long-lived)", () => {
         await pool.acquire("to-sess", cwd).prompt("timeout-me", { timeoutMs: 120 });
         expect.fail("should have thrown");
       } catch (err) {
-        expect((err as Error).message).toMatch(/timed out/i);
+        expect(err instanceof Error ? err.message : String(err)).toMatch(/timed out/i);
       }
       await delay(400);
       const before = await spawnCount(spawnLog);
@@ -549,13 +554,17 @@ describe("agy-pool (long-lived)", () => {
       expect(deltas.join("")).toBe(r.stdout);
       // ensure conversation event also forwarded
       expect(
-        events.some((e: unknown) => (e as { type: string }).type === "conversation"),
+        events.some(
+          (e: unknown) => isRecord(e) && typeof e.type === "string" && e.type === "conversation",
+        ),
       ).toBeTruthy();
       // ensure tool events forwarded
       expect(
-        events.some((e: unknown) => (e as { type: string }).type === "tool_start"),
+        events.some(
+          (e: unknown) => isRecord(e) && typeof e.type === "string" && e.type === "tool_start",
+        ),
       ).toBeTruthy();
-      expect(events.some((e: unknown) => (e as { type: string }).type === "tool_end")).toBeTruthy();
+      expect(events.some((e: unknown) => isRecord(e) && e.type === "tool_end")).toBeTruthy();
     } finally {
       await pool.disposeAll().catch(() => {});
       await rm(root, { recursive: true, force: true });
@@ -577,7 +586,9 @@ describe("agy-pool (long-lived)", () => {
         await pool.acquire("err-key", cwd).prompt("hi");
         expect.fail("should have thrown");
       } catch (err) {
-        expect((err as Error).message).toMatch(/failed to spawn agy|ENOENT|spawn/i);
+        expect(err instanceof Error ? err.message : String(err)).toMatch(
+          /failed to spawn agy|ENOENT|spawn/i,
+        );
       }
       // entry should have been removed
       await delay(100);
@@ -587,7 +598,9 @@ describe("agy-pool (long-lived)", () => {
         await pool.acquire("err-key2", cwd).prompt("hi2");
         expect.fail("should have thrown");
       } catch (err) {
-        expect((err as Error).message).toMatch(/failed to spawn agy|ENOENT|spawn/i);
+        expect(err instanceof Error ? err.message : String(err)).toMatch(
+          /failed to spawn agy|ENOENT|spawn/i,
+        );
       }
     } finally {
       await pool.disposeAll().catch(() => {});
@@ -620,7 +633,7 @@ describe("agy-pool (long-lived)", () => {
         expect.fail("should have thrown");
       } catch (err) {
         // could be exited message or boom
-        expect((err as Error).message).toMatch(/exited|killed|boom/i);
+        expect(err instanceof Error ? err.message : String(err)).toMatch(/exited|killed|boom/i);
       }
       await delay(100);
       expect(pool2.size()).toBe(0);

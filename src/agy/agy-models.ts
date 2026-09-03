@@ -24,6 +24,13 @@ export interface AgyModelMeta {
 
 const NAMED_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
+type ThinkingLevel = (typeof NAMED_LEVELS)[number];
+type ModelThinkingLevel = ThinkingLevel | "off";
+
+function isThinkingLevel(value: string): value is ModelThinkingLevel {
+  return (NAMED_LEVELS as readonly string[]).includes(value) || value === "off";
+}
+
 export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
   const set = new Set(variants.map((v) => v.toLowerCase()));
   const map: ThinkingLevelMap = { off: null };
@@ -84,7 +91,7 @@ export async function loadAgyCatalog(
 ): Promise<Record<string, DiscoveredAgyModel>> {
   const { config } = await loadModelsConfigFile(configPath);
   // Prefer "antigravity" key, fallback to legacy "agy" for migration
-  const primary = resolveAgentCatalog("antigravity" as any, config, mapConfigEntry);
+  const primary = resolveAgentCatalog("antigravity", config, mapConfigEntry);
   if (Object.keys(primary).length > 0) return primary;
   return resolveAgentCatalog("agy", config, mapConfigEntry);
 }
@@ -116,7 +123,7 @@ export function resolveAgyModelId(
   const map = buildThinkingLevelMap(meta.variants);
   const level = reasoning && reasoning !== "off" ? reasoning : undefined;
   const variant =
-    (level ? map[level as keyof ThinkingLevelMap] : undefined) ||
+    (level && isThinkingLevel(level) ? map[level] : undefined) ||
     meta.defaultVariant ||
     meta.variants[0];
 

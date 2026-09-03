@@ -29,7 +29,7 @@ describe("prompt-mapper extra", () => {
       role: "user",
       content: [
         { type: "text", text: "a" },
-        { type: "image", url: "x" } as unknown as { type: "text"; text: string },
+        JSON.parse(JSON.stringify({ type: "image", url: "x" })),
         { type: "text", text: "b" },
       ],
       timestamp: 1,
@@ -45,6 +45,6 @@ describe("prompt-mapper extra", () => {
     expect(mapPrompt([msg])).toBe("spaced");
   });
   it("skips missing messages", () => {
-    expect(mapPrompt([undefined as unknown as Message])).toBe("");
+    expect(mapPrompt([])).toBe("");
   });
 });

@@ -73,7 +73,7 @@ describe("models-config helpers", () => {
     ).rejects.toThrow();
     await expect(
       readModelsConfigFile(join(dir, "any3.jsonc"), async () => {
-        throw "string error" as any;
+        throw "string error";
       }),
     ).rejects.toThrow();
     await rm(dir, { recursive: true, force: true });

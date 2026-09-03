@@ -11,7 +11,7 @@ const assistant = (provider: string, text: string, model = "m"): Message => ({
   role: "assistant",
   content: [{ type: "text", text }],
   api: "openai-completions",
-  provider: provider as never,
+  provider: provider,
   model,
   usage: {
     input: 0,
@@ -32,7 +32,7 @@ const toolResult = (name: string, text: string, isError = false): Message =>
     content: [{ type: "text", text }],
     isError,
     timestamp: 1,
-  }) as unknown as Message;
+  }) satisfies Message;
 
 describe("mapPromptWithGap", () => {
   it("continuous agy -> no gap, returns latest user only", () => {
@@ -92,9 +92,9 @@ describe("mapPromptWithGap", () => {
       content: [
         { type: "text", text: "call" },
         { type: "toolCall", id: "c1", name: "run_command", arguments: { CommandLine: "ls" } },
-      ] as never,
+      ],
       api: "openai-completions",
-      provider: "openai" as never,
+      provider: "openai",
       model: "m",
       usage: {
         input: 0,

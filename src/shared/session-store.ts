@@ -1,5 +1,4 @@
 import { open, readFile, rename, mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
@@ -91,10 +90,43 @@ export function sleep(
   });
 }
 
+function isFunction(value: unknown): value is (...args: unknown[]) => unknown {
+  return typeof value === "function";
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isLockPayload(value: unknown): value is LockPayload {
+  return isRecord(value) && isString(value.token) && typeof value.pid === "number";
+}
+
+function isStoreEntry(value: unknown): value is StoreEntry {
+  return (
+    isRecord(value) &&
+    (value.conversationId === null || isString(value.conversationId)) &&
+    isString(value.prevOutput)
+  );
+}
+
+function isStoreFile(value: unknown): value is StoreFile {
+  if (!isRecord(value)) return false;
+  const sessions = value.sessions;
+  if (!isRecord(sessions)) return false;
+  for (const entry of Object.values(sessions)) {
+    if (!isStoreEntry(entry)) return false;
+  }
+  return true;
+}
+
 export function errCode(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") return undefined;
-  const code = (error as { code: unknown }).code;
-  if (typeof code === "string") return code;
+  if (!isRecord(error)) return undefined;
+  const code = error.code;
+  if (isString(code)) return code;
   return undefined;
 }
 
@@ -111,15 +143,8 @@ export function defaultIsAlive(pid: number): boolean {
 
 export function parseLock(raw: string): LockPayload | null {
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      typeof (parsed as LockPayload).token === "string" &&
-      typeof (parsed as LockPayload).pid === "number"
-    ) {
-      return parsed as LockPayload;
-    }
+    const parsed: unknown = JSON.parse(raw);
+    if (isLockPayload(parsed)) return parsed;
     return null;
   } catch {
     return null;
@@ -129,9 +154,9 @@ export function parseLock(raw: string): LockPayload | null {
 export async function createLockFile(
   lockPath: string,
   token: string,
-  openFn: (path: string, flags: string) => Promise<FileHandle> = open as any,
+  openFn: (path: string, flags: string) => Promise<unknown> = (path, flags) => open(path, flags),
 ): Promise<LockIdentity | "exists"> {
-  let fh: FileHandle;
+  let fh: unknown;
   try {
     fh = await openFn(lockPath, "wx");
   } catch (error) {
@@ -139,13 +164,33 @@ export async function createLockFile(
     throw error;
   }
   try {
-    await fh.writeFile(JSON.stringify({ token, pid: process.pid }));
-    const info = await fh.stat();
-    await fh.close().catch(() => {});
-    return { token, dev: info.dev, ino: info.ino };
+    if (typeof fh !== "object" || fh === null) throw new Error("invalid handle");
+    const fhRec = isRecord(fh) ? fh : undefined;
+    const fhWriteFile = fhRec ? Reflect.get(fhRec, "writeFile") : undefined;
+    const fhStat = fhRec ? Reflect.get(fhRec, "stat") : undefined;
+    const fhClose = fhRec ? Reflect.get(fhRec, "close") : undefined;
+    if (!isFunction(fhWriteFile) || !isFunction(fhStat) || !isFunction(fhClose))
+      throw new Error("invalid handle");
+    await Reflect.apply(fhWriteFile, fh, [JSON.stringify({ token, pid: process.pid })]);
+    const infoUnknown: unknown = await Reflect.apply(fhStat, fh, []);
+    if (!isRecord(infoUnknown) || !("dev" in infoUnknown) || !("ino" in infoUnknown))
+      throw new Error("invalid stat");
+    const dev = infoUnknown.dev;
+    const ino = infoUnknown.ino;
+    if (typeof dev !== "number" || typeof ino !== "number") throw new Error("invalid stat");
+    const fhRec3 = isRecord(fh) ? fh : undefined;
+    const closeFn2 = fhRec3 ? Reflect.get(fhRec3, "close") : undefined;
+    if (fhRec3 && isFunction(closeFn2))
+      await Function.prototype.apply.call(closeFn2, fhRec3, []).catch(() => {});
+    return { token, dev, ino };
   } catch (error) {
     await unlink(lockPath).catch(() => {});
-    await fh.close().catch(() => {});
+    if (typeof fh === "object" && fh !== null) {
+      const fhRec4 = isRecord(fh) ? fh : undefined;
+      const close2 = fhRec4 ? Reflect.get(fhRec4, "close") : undefined;
+      if (fhRec4 && isFunction(close2))
+        await Function.prototype.apply.call(close2, fhRec4, []).catch(() => {});
+    }
     throw error;
   }
 }
@@ -291,22 +336,15 @@ export class SessionStore {
     try {
       raw = await readFile(this.stateFile, "utf-8");
     } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return { sessions: {} };
+      if (errCode(err) === "ENOENT") return { sessions: {} };
       throw err;
     }
 
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed) ||
-      typeof (parsed as { sessions?: unknown }).sessions !== "object" ||
-      (parsed as { sessions?: unknown }).sessions === null ||
-      Array.isArray((parsed as { sessions?: unknown }).sessions)
-    ) {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isStoreFile(parsed)) {
       throw new Error("Invalid session store state format");
     }
 
-    return { sessions: (parsed as StoreFile).sessions };
+    return parsed;
   }
 }

@@ -42,7 +42,8 @@ describe("toPiModels", () => {
   it("marks variant models as reasoning with low/medium/high only", () => {
     const { models, meta } = toPiModels(SAMPLE);
     expect(models.length).toBe(1);
-    const flash = models[0] as NonNullable<(typeof models)[number]>;
+    const flash = models[0];
+    if (!flash) throw new Error("missing model");
     expect(flash.id).toBe("gemini-3.7-flash");
     expect(flash.reasoning).toBe(true);
     expect(flash.thinkingLevelMap?.low).toBe("low");

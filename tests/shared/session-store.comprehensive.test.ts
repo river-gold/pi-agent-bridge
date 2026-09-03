@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { mkdtemp, writeFile, rm, mkdir, stat, unlink } from "node:fs/promises";
+import { describe, it, expect, vi } from "vitest";
+import { mkdtemp, writeFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -72,23 +72,22 @@ describe("session-store comprehensive", () => {
   });
 
   it("defaultIsAlive EPERM and ESRCH handling", () => {
-    const origKill = process.kill;
     try {
-      process.kill = (() => {
-        const err = new Error("EPERM") as NodeJS.ErrnoException;
+      vi.spyOn(process, "kill").mockImplementation(() => {
+        const err = Object.assign(new Error("EPERM"), { code: "EPERM" });
         err.code = "EPERM";
         throw err;
-      }) as typeof process.kill;
+      });
       expect(defaultIsAlive(12345)).toBe(true);
 
-      process.kill = (() => {
-        const err = new Error("ESRCH") as NodeJS.ErrnoException;
+      vi.spyOn(process, "kill").mockImplementation(() => {
+        const err = Object.assign(new Error("ESRCH"), { code: "ESRCH" });
         err.code = "ESRCH";
         throw err;
-      }) as typeof process.kill;
+      });
       expect(defaultIsAlive(12345)).toBe(false);
     } finally {
-      process.kill = origKill;
+      vi.restoreAllMocks();
     }
   });
 
@@ -117,9 +116,9 @@ describe("session-store comprehensive", () => {
   it("createLockFile error branches and fh cleanup", async () => {
     const dir = await mkdtemp(join(tmpdir(), "comp3-"));
     await expect(
-      createLockFile(join(dir, "bad.lock"), "tok", (async () => {
+      createLockFile(join(dir, "bad.lock"), "tok", async () => {
         throw new Error("open failure");
-      }) as any),
+      }),
     ).rejects.toThrow("open failure");
 
     const mockFh = {
@@ -131,9 +130,9 @@ describe("session-store comprehensive", () => {
         throw new Error("close fail");
       },
     };
-    await expect(
-      createLockFile(join(dir, "bad2.lock"), "tok", (async () => mockFh) as any),
-    ).rejects.toThrow("write fail");
+    await expect(createLockFile(join(dir, "bad2.lock"), "tok", async () => mockFh)).rejects.toThrow(
+      "write fail",
+    );
 
     const mockFh2 = {
       writeFile: async () => {},
@@ -142,7 +141,7 @@ describe("session-store comprehensive", () => {
         throw new Error("close fail");
       },
     };
-    const res = await createLockFile(join(dir, "good.lock"), "tok", (async () => mockFh2) as any);
+    const res = await createLockFile(join(dir, "good.lock"), "tok", async () => mockFh2);
     expect(res).toEqual({ token: "tok", dev: 1, ino: 1 });
     await rm(dir, { recursive: true, force: true });
   });

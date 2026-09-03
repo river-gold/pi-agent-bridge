@@ -17,6 +17,9 @@ import {
 const execFileAsync = promisify(execFile);
 const modelsConfigModuleUrl = new URL("../../src/shared/models-config.ts", import.meta.url).href;
 const relativeConfigPath = join(".pi", "agent", "pi-agent-bridge.jsonc");
+function getIgnored(v: unknown): unknown {
+  return typeof v === "object" && v !== null ? Reflect.get(v, "ignored") : undefined;
+}
 
 type ChildLoadResult =
   | {
@@ -24,6 +27,9 @@ type ChildLoadResult =
       loaded: { path: string; config: ModelsConfigFile; exists: boolean };
     }
   | { ok: false; code?: string; message: string };
+function isChildLoadResult(v: unknown): v is ChildLoadResult {
+  return typeof v === "object" && v !== null && "ok" in v;
+}
 
 async function writeModelsConfig(baseDir: string, config: unknown): Promise<string> {
   const path = join(baseDir, relativeConfigPath);
@@ -60,7 +66,9 @@ try {
     ["--experimental-strip-types", "--input-type=module", "--eval", script],
     { cwd: options.cwd, env },
   );
-  return JSON.parse(stdout) as ChildLoadResult;
+  const parsed: unknown = JSON.parse(stdout);
+  if (!isChildLoadResult(parsed)) throw new Error("invalid");
+  return parsed;
 }
 
 function assertLoaded(
@@ -247,7 +255,7 @@ describe("models-config", () => {
     });
     expect(Object.keys(cfg.agy?.models ?? {})).toEqual(["m1"]);
     expect(cfg.agy?.models?.m1?.defaultVariant).toBe("high");
-    expect((cfg as Record<string, unknown>).ignored).toBe(undefined);
+    expect(getIgnored(cfg)).toBeUndefined();
   });
 
   it("resolveAgentCatalog returns empty when section missing", () => {
@@ -337,8 +345,10 @@ describe("models-config", () => {
         expect.fail("should have thrown");
       } catch (error) {
         expect(error instanceof Error).toBeTruthy();
-        expect((error as Error).message).toMatch(/Invalid JSONC in models config/);
-        expect((error as Error).message.includes(path)).toBeTruthy();
+        expect(error instanceof Error ? error.message : String(error)).toMatch(
+          /Invalid JSONC in models config/,
+        );
+        expect(error instanceof Error && error.message.includes(path)).toBeTruthy();
       }
     } finally {
       await rm(dir, { recursive: true, force: true });

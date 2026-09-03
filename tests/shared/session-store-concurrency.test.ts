@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import { describe, it, expect } from "vitest";
+import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionStore, tryAcquireLock } from "../../src/shared/session-store.ts";

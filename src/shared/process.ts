@@ -1,4 +1,11 @@
-import type { ChildProcess } from "node:child_process";
+type ExitStatus = { exitCode: number | null; signalCode: NodeJS.Signals | null };
+type Killable = { kill(signal: NodeJS.Signals): boolean };
+type Listenable = { once(event: string, listener: () => void): unknown };
+type StreamContainer = {
+  stdin?: { destroy(): void } | null | undefined;
+  stdout?: { destroy(): void } | null | undefined;
+  stderr?: { destroy(): void } | null | undefined;
+};
 
 function destroyStream(stream: { destroy: () => void } | undefined | null): void {
   if (!stream) return;
@@ -9,12 +16,14 @@ function destroyStream(stream: { destroy: () => void } | undefined | null): void
   }
 }
 
-export function isAlreadyExited(child: ChildProcess): boolean {
+export function isAlreadyExited(child: ExitStatus): boolean {
   return child.exitCode !== null || child.signalCode !== null;
 }
 
 /** Close stdio and SIGKILL so the Node event loop can exit. */
-export async function disposeChild(child: ChildProcess | null): Promise<void> {
+export async function disposeChild(
+  child: (ExitStatus & Killable & Listenable & StreamContainer) | null,
+): Promise<void> {
   if (!child) return;
   destroyStream(child.stdin);
   destroyStream(child.stdout);
@@ -32,7 +41,7 @@ export async function disposeChild(child: ChildProcess | null): Promise<void> {
   });
 }
 
-export function tryKill(child: ChildProcess, signal: NodeJS.Signals): boolean {
+export function tryKill(child: Killable, signal: NodeJS.Signals): boolean {
   try {
     child.kill(signal);
     return true;
@@ -51,7 +60,7 @@ export function tryEnd(stream: { end: () => void } | null | undefined): void {
 }
 
 export async function terminateChild(
-  child: ChildProcess,
+  child: ExitStatus & Killable & Listenable,
   termAfterMs = 2000,
   killAfterMs = 1000,
 ): Promise<void> {

@@ -34,7 +34,7 @@ export function extractTailDelta(output: string, normPrevTrimmed: string): strin
     tailStart = 0;
   } else if (firstTokenMatch) {
     const firstTokenStart = getFirstTokenStart(firstTokenMatch);
-    const firstToken = firstTokenMatch[0]!;
+    const firstToken = firstTokenMatch[0];
     if (firstToken.endsWith(tail)) {
       tailStart = firstTokenStart + firstToken.length - tail.length;
     }
@@ -74,7 +74,7 @@ export function extractDelta(
 
   const lines = normPrevTrimmed.split("\n").filter((l) => l.trim());
   if (lines.length > 1) {
-    const lastLine = lines[lines.length - 1]!.trimEnd();
+    const lastLine = lines[lines.length - 1].trimEnd();
     if (lastLine.length >= 10 && output.startsWith(lastLine) && hasBoundary(output, lastLine, 0)) {
       return output.slice(lastLine.length).replace(/^\s+/, "");
     }
