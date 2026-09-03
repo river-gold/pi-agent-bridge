@@ -8,6 +8,8 @@
  *   AGY_BINARY, AGY_TIMEOUT_MS, AGY_EXTRA_ARGS, AGY_CONVERSATIONS_DIR (shared with agy)
  *   AGY_POOL_IDLE_MS       idle eviction ms (default 300000 = 5m)
  *   AGY_POOL_MAX_SIZE      max pooled processes (default 20)
+ *   AGY_INPUT_HISTORY_THRESHOLD  full-history inline limit in bytes (default 51200)
+ *   AGY_INPUT_HISTORY_PREVIEW    preview chars in file-spill directive (default 2000)
  *
  * Security:
  *   Same as agy: --dangerously-skip-permissions, --add-dir cwd
@@ -26,7 +28,14 @@ import { join } from "node:path";
 import { discoverModels } from "../src/agy/agy-models.ts";
 import { loadConfig } from "../src/agy/config.ts";
 import { SessionStore } from "../src/agy/session-store.ts";
-import { mapPromptWithGap, withCompactSummaryPrefix } from "../src/agy/prompt-mapper.ts";
+import {
+  assembleHistoryPrompt,
+  buildFileDirective,
+  buildFullHistorySegment,
+  isLastAssistantForeign,
+  mapPrompt,
+  withCompactSummaryPrefix,
+} from "../src/agy/prompt-mapper.ts";
 import { resolveAgyModelId, type AgyModelMeta } from "../src/agy/agy-models.ts";
 import { findNewConversation, snapshot } from "../src/agy/conversation-tracker.ts";
 import { extractDelta } from "../src/agy/extract-delta.ts";
@@ -36,15 +45,66 @@ import {
   type AssistantMessage,
   type Api,
 } from "@earendil-works/pi-ai";
-import { AgyPool, compositeKey } from "../src/agy/agy-pool.ts";
+import {
+  AgyPool,
+  compositeKey,
+  type AgyStreamEvent,
+  type RunPooledResult,
+} from "../src/agy/agy-pool.ts";
 import type { AgyConfig } from "../src/agy/config.ts";
 
-interface PoolRuntime {
+export interface PoolRuntimeHandle {
+  prompt: (
+    prompt: string,
+    options?: {
+      signal?: AbortSignal;
+      timeoutMs?: number;
+      onEvent?: (event: AgyStreamEvent) => void;
+    },
+  ) => Promise<RunPooledResult>;
+}
+
+export interface PoolRuntimePool {
+  peekModelEffort: (key: string) => { model?: string; effort?: string } | undefined;
+  has: (key: string) => boolean;
+  disposeKey: (key: string) => Promise<boolean>;
+  acquire: (
+    sessionKey: string | undefined,
+    cwd: string,
+    model?: string,
+    effort?: string,
+    conversationId?: string,
+  ) => PoolRuntimeHandle;
+}
+
+export interface PoolRuntimeStoreEntry {
+  conversationId: string | null;
+  prevOutput?: string;
+  model?: string;
+  effort?: string;
+}
+
+export interface PoolRuntimeStore {
+  getEntry: (key: string) => Promise<PoolRuntimeStoreEntry | null>;
+  acquireBindingLock: (options?: {
+    abortSignal?: AbortSignal;
+    timeoutMs?: number;
+  }) => Promise<() => Promise<void>>;
+  set: (
+    key: string,
+    conversationId: string | null,
+    prevOutput?: string,
+    model?: string,
+    effort?: string,
+  ) => Promise<void>;
+}
+
+export interface PoolRuntime {
   config: AgyConfig;
   getCwd: () => string;
   getMeta: (modelId: string) => AgyModelMeta | undefined;
-  store: SessionStore;
-  pool: AgyPool;
+  store: PoolRuntimeStore;
+  pool: PoolRuntimePool;
 }
 
 const prevOutputs = new Map<string, string>();
@@ -65,9 +125,17 @@ export function consumeCompactSeed(poolKey: string): string | undefined {
   return seed;
 }
 
-export interface CompactionResetDeps {
+export interface SessionResetDeps {
   disposeKey: (key: string) => Promise<unknown>;
   set: (key: string, conversationId: string | null, prevOutput?: string) => Promise<unknown>;
+}
+
+export type CompactionResetDeps = SessionResetDeps;
+
+export async function resetSessionState(deps: SessionResetDeps, poolKey: string): Promise<void> {
+  await deps.disposeKey(poolKey).catch(() => false);
+  await deps.set(poolKey, null, "").catch(() => undefined);
+  prevOutputs.delete(poolKey);
 }
 
 /** Drop agy-side state for a compacted session and stash pi's summary as a one-shot seed. */
@@ -76,9 +144,7 @@ export async function resetPoolForCompaction(
   poolKey: string,
   summary: string | undefined,
 ): Promise<void> {
-  await deps.disposeKey(poolKey).catch(() => false);
-  await deps.set(poolKey, null, "").catch(() => undefined);
-  prevOutputs.delete(poolKey);
+  await resetSessionState(deps, poolKey);
   setCompactSeed(poolKey, summary ?? "");
 }
 
@@ -153,16 +219,75 @@ export function streamAgyPool(
         conversationId = entry?.conversationId ?? null;
       }
 
+      const resolved = resolveAgyModelId(model.id, options?.reasoning, runtime.getMeta(model.id));
+
+      // Reset conversation when model/effort changed or another provider
+      // was used since the last agy turn: full history is re-injected below.
+      let wasReset = false;
+      const prev = runtime.pool.peekModelEffort(poolKey);
+      const modelChanged =
+        prev !== undefined &&
+        ((prev.model ?? undefined) !== (resolved.model ?? undefined) ||
+          (prev.effort ?? undefined) !== (resolved.effort ?? undefined));
+      // Stored model/effort covers pool eviction: live entry may be gone
+      // while the conversation binding survives in the store.
+      const storedModelChanged = entry?.model !== undefined && entry.model !== resolved.model;
+      const storedEffortChanged =
+        entry?.effort !== undefined && entry.effort !== (resolved.effort ?? undefined);
+      if (conversationId || runtime.pool.has(poolKey)) {
+        if (
+          modelChanged ||
+          storedModelChanged ||
+          storedEffortChanged ||
+          isLastAssistantForeign(context.messages)
+        ) {
+          conversationId = null;
+          wasReset = true;
+          await resetSessionState(
+            {
+              disposeKey: (k) => runtime.pool.disposeKey(k),
+              set: (k, c, p) => runtime.store.set(k, c, p),
+            },
+            poolKey,
+          );
+        }
+      }
+      remainingTimeout();
+
       const before = conversationId ? null : await snapshot(runtime.config.conversationsDir);
       remainingTimeout();
 
-      const basePrompt = mapPromptWithGap(context.messages);
+      const latest = mapPrompt(context.messages);
       const seed = consumeCompactSeed(poolKey);
-      const prompt = seed ? withCompactSummaryPrefix(basePrompt, seed) : basePrompt;
+      let prompt: string;
+      let historyFile: string | null = null;
+      if (!conversationId) {
+        const segment = buildFullHistorySegment(context.messages, seed);
+        if (segment) {
+          const byteLength = Buffer.byteLength(segment, "utf8");
+          const inputThreshold = Number(process.env.AGY_INPUT_HISTORY_THRESHOLD ?? 50 * 1024);
+          if (byteLength > inputThreshold) {
+            const previewChars = Number(process.env.AGY_INPUT_HISTORY_PREVIEW ?? 2000);
+            const fileName = `pi-agy-history-${poolKey.replace(/[^a-zA-Z0-9_-]/g, "_")}-${Date.now()}.md`;
+            historyFile = join(cwd, ".temp", fileName);
+            await mkdir(join(cwd, ".temp"), { recursive: true });
+            await writeFile(historyFile, segment, "utf8");
+            prompt = assembleHistoryPrompt(
+              buildFileDirective(`.temp/${fileName}`, byteLength, segment.slice(0, previewChars)),
+              latest,
+            );
+          } else {
+            prompt = assembleHistoryPrompt(segment, latest);
+          }
+        } else {
+          prompt = latest;
+        }
+      } else {
+        prompt = latest;
+      }
+      if (seed) prompt = withCompactSummaryPrefix(prompt, seed);
       remainingTimeout();
       if (!prompt.trim()) throw new Error("agy turn has no user text");
-
-      const resolved = resolveAgyModelId(model.id, options?.reasoning, runtime.getMeta(model.id));
 
       let streamed = false;
       let textStarted = false;
@@ -200,34 +325,39 @@ export function streamAgyPool(
         conversationId ?? undefined,
       );
 
-      const result = await handle.prompt(prompt, {
-        signal: options?.signal,
-        timeoutMs: remainingTimeout(),
-        onEvent: (event) => {
-          if (event.type === "conversation" && !conversationId) conversationId = event.id;
-          if (event.type === "text" && event.text) {
-            streamed = true;
-            pushText(event.text);
-          }
-          if (event.type === "tool_end" && event.output) {
-            const out = event.output;
-            const alias: Record<string, string> = {
-              grep_search: "rg",
-              list_dir: "ls",
-              view_file: "read",
-            };
-            const displayName = alias[event.name] ?? event.name;
-            pushText(`\n[${displayName}] output:\n${out}\n`);
-          }
-        },
-      });
+      let result: RunPooledResult;
+      try {
+        result = await handle.prompt(prompt, {
+          signal: options?.signal,
+          timeoutMs: remainingTimeout(),
+          onEvent: (event) => {
+            if (event.type === "conversation" && !conversationId) conversationId = event.id;
+            if (event.type === "text" && event.text) {
+              streamed = true;
+              pushText(event.text);
+            }
+            if (event.type === "tool_end" && event.output) {
+              const out = event.output;
+              const alias: Record<string, string> = {
+                grep_search: "rg",
+                list_dir: "ls",
+                view_file: "read",
+              };
+              const displayName = alias[event.name] ?? event.name;
+              pushText(`\n[${displayName}] output:\n${out}\n`);
+            }
+          },
+        });
+      } finally {
+        if (historyFile) await unlink(historyFile).catch(() => undefined);
+      }
 
       if (!conversationId && result.conversationId) conversationId = result.conversationId;
       if (!conversationId && before)
         conversationId = await findNewConversation(before, runtime.config.conversationsDir);
 
       let prevOutput = prevOutputs.get(poolKey) ?? "";
-      if (!prevOutput && entry?.prevOutput) {
+      if (!prevOutput && entry?.prevOutput && !wasReset) {
         prevOutput = entry.prevOutput;
         prevOutputs.set(poolKey, prevOutput);
       }
@@ -294,7 +424,13 @@ export function streamAgyPool(
       if (conversationId) prevOutputs.set(poolKey, result.stdout);
       else prevOutputs.delete(poolKey);
 
-      await runtime.store.set(poolKey, conversationId, conversationId ? result.stdout : "");
+      await runtime.store.set(
+        poolKey,
+        conversationId,
+        conversationId ? result.stdout : "",
+        resolved.model,
+        resolved.effort,
+      );
 
       if (result.usage) {
         output.usage.input = result.usage.inputTokens;

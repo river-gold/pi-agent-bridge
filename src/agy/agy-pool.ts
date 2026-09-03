@@ -307,8 +307,16 @@ export class AgyPool {
     return this.entries.size;
   }
 
+  /** Model/effort of the live entry for a composite key, if any. */
+  peekModelEffort(key: string): { model?: string; effort?: string } | undefined {
+    const entry = this.entries.get(key);
+    if (!entry || entry.closed) return undefined;
+    return { model: entry.model, effort: entry.effort };
+  }
+
   has(key: string): boolean {
-    return this.entries.has(key);
+    const entry = this.entries.get(key);
+    return Boolean(entry && !entry.closed);
   }
 
   getEntryForTest(key: string): PoolEntry | undefined {
@@ -739,6 +747,12 @@ export class PooledHandle {
   }
   get conversationId(): string | undefined {
     return this.entry.conversationId;
+  }
+  get model(): string | undefined {
+    return this.entry.model;
+  }
+  get effort(): string | undefined {
+    return this.entry.effort;
   }
 
   prompt(prompt: string, opts?: PoolPromptOptions): Promise<RunPooledResult> {

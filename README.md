@@ -82,12 +82,14 @@ Per-model fields:
 
 ### Config (env)
 
-| Env                     | Default                                   | Meaning                     |
-| ----------------------- | ----------------------------------------- | --------------------------- |
-| `AGY_BINARY`            | `agy`                                     | CLI binary                  |
-| `AGY_TIMEOUT_MS`        | `300000`                                  | per-turn timeout            |
-| `AGY_EXTRA_ARGS`        | _(empty)_                                 | extra args, space-separated |
-| `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation bind discovery |
+| Env                           | Default                                   | Meaning                               |
+| ----------------------------- | ----------------------------------------- | ------------------------------------- |
+| `AGY_BINARY`                  | `agy`                                     | CLI binary                            |
+| `AGY_TIMEOUT_MS`              | `300000`                                  | per-turn timeout                      |
+| `AGY_EXTRA_ARGS`              | _(empty)_                                 | extra args, space-separated           |
+| `AGY_CONVERSATIONS_DIR`       | `~/.gemini/antigravity-cli/conversations` | conversation bind discovery           |
+| `AGY_INPUT_HISTORY_THRESHOLD` | `51200`                                   | full-history inline limit, bytes      |
+| `AGY_INPUT_HISTORY_PREVIEW`   | `2000`                                    | preview chars in file-spill directive |
 
 State: `~/.pi/agent/agy/sessions.json`
 
@@ -103,8 +105,9 @@ Example:
 
 ### Behavior / security
 
-- Only the latest user text is sent (no history / tools / system harness)
-- Multi-turn context uses the agy conversation binding
+- No conversation yet (first agy turn, model/effort change, or another provider used since the last agy turn): full pi history is injected (current request appended as `[Current request]`)
+- Over-threshold history is spilled to `<cwd>/.temp/pi-agy-history-*.md` with a read-before-answering directive + preview; the file is deleted after the turn (add `.temp/` to `.gitignore`)
+- Same model/effort in a row: only the latest user text is sent; context comes from the agy conversation binding
 - Every call uses `--dangerously-skip-permissions`
 
 ---

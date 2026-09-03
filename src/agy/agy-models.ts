@@ -63,11 +63,13 @@ export function toPiModels(discovered: Record<string, DiscoveredAgyModel> = {}):
   const meta = new Map<string, AgyModelMeta>();
 
   for (const [id, info] of Object.entries(discovered)) {
-    const variants = info.variants ?? [];
-    const hasVariants = variants.length >= 2;
+    const rawVariants = info.variants ?? [];
+    const defaultVariant = info.defaultVariant ?? rawVariants[0];
+    const variants = rawVariants.length > 0 ? rawVariants : defaultVariant ? [defaultVariant] : [];
+    const hasVariants = variants.length >= 1;
     meta.set(id, {
       modelId: info.modelId,
-      defaultVariant: info.defaultVariant ?? variants[0],
+      defaultVariant,
       variants,
     });
 
@@ -121,16 +123,19 @@ export function resolveAgyModelId(
   meta: AgyModelMeta | undefined,
 ): { model: string; effort?: string } {
   const base = meta?.modelId ?? piModelId;
-  if (!meta || meta.variants.length < 2) {
+  const variants = meta?.variants ?? [];
+  const defaultVariant = meta?.defaultVariant ?? variants[0];
+  if (!meta || (variants.length === 0 && !defaultVariant)) {
     return { model: base };
   }
 
-  const map = buildThinkingLevelMap(meta.variants);
+  const effectiveVariants = variants.length > 0 ? variants : defaultVariant ? [defaultVariant] : [];
+  const map = buildThinkingLevelMap(effectiveVariants);
   const level = reasoning && reasoning !== "off" ? reasoning : undefined;
   const variant =
     (level && isThinkingLevel(level) ? map[level] : undefined) ||
-    meta.defaultVariant ||
-    meta.variants[0];
+    defaultVariant ||
+    effectiveVariants[0];
 
   if (typeof variant === "string" && variant.length > 0) {
     return { model: `${base}-${variant}` };

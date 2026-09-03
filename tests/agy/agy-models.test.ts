@@ -43,9 +43,53 @@ describe("resolveAgyModelId", () => {
       model: "claude-sonnet-4-6",
     });
   });
+
+  it("handles single variant and defaultVariant", () => {
+    const meta = {
+      modelId: "gemini-3.8-flash",
+      defaultVariant: "high",
+      variants: ["high"],
+    };
+    expect(resolveAgyModelId("gemini-3.8-flash", "high", meta)).toEqual({
+      model: "gemini-3.8-flash-high",
+    });
+    expect(resolveAgyModelId("gemini-3.8-flash", undefined, meta)).toEqual({
+      model: "gemini-3.8-flash-high",
+    });
+    expect(resolveAgyModelId("gemini-3.8-flash", "off", meta)).toEqual({
+      model: "gemini-3.8-flash-high",
+    });
+    expect(
+      resolveAgyModelId("gemini-3.8-flash", undefined, {
+        modelId: "gemini-3.8-flash",
+        defaultVariant: "high",
+        variants: [],
+      }),
+    ).toEqual({
+      model: "gemini-3.8-flash-high",
+    });
+  });
 });
 
 describe("toPiModels", () => {
+  it("marks single-variant model as reasoning and sets defaultVariant", () => {
+    const { models, meta } = toPiModels({
+      "gemini-flash": {
+        modelId: "gemini-3.8-flash",
+        name: "Gemini 3.8 Flash",
+        defaultVariant: "high",
+        variants: ["high"],
+      },
+    });
+    expect(models.length).toBe(1);
+    const model = models[0];
+    expect(model.id).toBe("gemini-flash");
+    expect(model.reasoning).toBe(true);
+    expect(model.thinkingLevelMap?.high).toBe("high");
+    expect(model.thinkingLevelMap?.low).toBe(null);
+    expect(meta.get("gemini-flash")?.defaultVariant).toBe("high");
+    expect(meta.get("gemini-flash")?.variants).toEqual(["high"]);
+  });
   it("marks variant models as reasoning with low/medium/high only", () => {
     const { models, meta } = toPiModels(SAMPLE);
     expect(models.length).toBe(1);

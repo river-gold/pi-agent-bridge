@@ -82,12 +82,14 @@ $EDITOR .pi/agent/pi-agent-bridge.jsonc
 
 ### Config (env)
 
-| Env                     | Default                                   | Meaning                  |
-| ----------------------- | ----------------------------------------- | ------------------------ |
-| `AGY_BINARY`            | `agy`                                     | CLI binary               |
-| `AGY_TIMEOUT_MS`        | `300000`                                  | 턴 타임아웃              |
-| `AGY_EXTRA_ARGS`        | _(empty)_                                 | 추가 args (공백 구분)    |
-| `AGY_CONVERSATIONS_DIR` | `~/.gemini/antigravity-cli/conversations` | conversation 바인딩 탐색 |
+| Env                           | Default                                   | Meaning                            |
+| ----------------------------- | ----------------------------------------- | ---------------------------------- |
+| `AGY_BINARY`                  | `agy`                                     | CLI binary                         |
+| `AGY_TIMEOUT_MS`              | `300000`                                  | 턴 타임아웃                        |
+| `AGY_EXTRA_ARGS`              | _(empty)_                                 | 추가 args (공백 구분)              |
+| `AGY_CONVERSATIONS_DIR`       | `~/.gemini/antigravity-cli/conversations` | conversation 바인딩 탐색           |
+| `AGY_INPUT_HISTORY_THRESHOLD` | `51200`                                   | 전체 히스토리 인라인 한도 (바이트) |
+| `AGY_INPUT_HISTORY_PREVIEW`   | `2000`                                    | 파일 전달 지시문 preview 글자수    |
 
 State: `~/.pi/agent/agy/sessions.json`
 
@@ -103,8 +105,9 @@ State: `~/.pi/agent/agy/sessions.json`
 
 ### Behavior / security
 
-- 최신 user 입력만 전달 (history / tool / system harness 제외)
-- 멀티턴은 agy conversation 바인딩
+- conversation 없음(첫 agy 턴, 모델/effort 변경, 마지막 agy 턴 이후 타 provider 사용): pi 전체 히스토리 주입(최신 요청은 `[Current request]`로 appended)
+- 임계값 초과 히스토리는 `<cwd>/.temp/pi-agy-history-*.md` 파일로 전달(읽기 지시 + preview), 턴 종료 후 삭제(`.temp/`는 `.gitignore` 권장)
+- 동일 모델/effort 연속 사용: 최신 user 입력만 전달, 문맥은 agy conversation 바인딩
 - 모든 호출에 `--dangerously-skip-permissions`
 
 ---

@@ -27,48 +27,64 @@ export function withCompactSummaryPrefix(prompt: string, summary?: string): stri
 }
 
 /**
- * Build prompt with gap injection for agy pool.
- * If the last antigravity turn exists and there are messages after it (from other providers),
- * prepend serialized gap as context header + latest user request.
- * Otherwise returns same as mapPrompt (no gap).
+ * Build full-history segment for a fresh agy conversation.
+ * Serializes every message except the trailing current user request
+ * (appended separately as [Current request]).
+ * Messages already carried by excludeText (e.g. a consumed compaction
+ * seed) are dropped to avoid duplicate injection.
+ * Returns null when there is no history to inject.
  */
-export function mapPromptWithGap(messages: Message[]): string {
-  const latest = mapPrompt(messages);
-  const gap = buildGapSegment(messages);
-  if (!gap) return latest;
-  if (!latest) return gap;
-  return `${gap}\n\n---\n\n[Current request]\n${latest}`;
-}
-
-/** Serialized gap header or null when no gap. Exported for testing. */
-export function buildGapSegment(messages: Message[]): string | null {
-  const lastAgyIdx = findLastAntigravityIndex(messages);
-  if (lastAgyIdx === -1) return null;
-  const after = messages.slice(lastAgyIdx + 1);
-  if (after.length === 0) return null;
-  // If gap is exactly one trailing user message (continuous agy), no gap to inject
-  if (after.length === 1 && after[0]?.role === "user") return null;
-  // Exclude trailing last user (current request) from gap; it will be appended separately
-  let gapMessages = after;
-  const last = after[after.length - 1];
-  if (last?.role === "user") {
-    gapMessages = after.slice(0, -1);
-    if (gapMessages.length === 0) return null;
-  }
-  const serialized = gapMessages.map(serializeMessage).filter((s) => s.trim().length > 0);
+export function buildFullHistorySegment(messages: Message[], excludeText?: string): string | null {
+  let history = messages;
+  const last = messages[messages.length - 1];
+  if (last?.role === "user") history = messages.slice(0, -1);
+  const excluded = excludeText?.trim() ?? "";
+  const dropDuplicated = excluded.length >= 32;
+  const serialized = history
+    .filter((msg) => !dropDuplicated || !extractText(msg).includes(excluded))
+    .map(serializeMessage)
+    .filter((s) => s.trim().length > 0);
   if (serialized.length === 0) return null;
-  const header = `[Context since last antigravity turn — ${serialized.length} message(s) from other providers]`;
+  const header = `[Conversation history — ${serialized.length} message(s)]`;
   return `${header}\n${serialized.join("\n\n")}`;
 }
 
-function findLastAntigravityIndex(messages: Message[]): number {
+/** Provider ids owned by this bridge ("agy" = pre-rename id, still in old sessions). */
+const AGY_PROVIDERS: ReadonlySet<string> = new Set(["antigravity", "agy"]);
+
+export function isAgyProvider(provider: string | undefined): boolean {
+  return provider !== undefined && AGY_PROVIDERS.has(provider);
+}
+
+/**
+ * Whether the latest assistant turn came from a non-agy provider.
+ * Detection only (no serialization): single reverse scan.
+ * Returns false when there is no assistant turn yet.
+ */
+export function isLastAssistantForeign(messages: Message[]): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    if (msg?.role === "assistant" && msg.provider === "antigravity") {
-      return i;
-    }
+    if (msg?.role === "assistant") return !isAgyProvider(msg.provider);
   }
-  return -1;
+  return false;
+}
+
+/**
+ * Assemble final prompt from a history segment and the latest request.
+ * Shared by inline and file-spill paths (spill passes its directive as segment).
+ */
+export function assembleHistoryPrompt(segment: string | null, latest: string): string {
+  if (!segment) return latest;
+  if (!latest) return segment;
+  return `${segment}\n\n---\n\n[Current request]\n${latest}`;
+}
+
+/**
+ * Build the file-spill directive replacing an over-threshold history segment.
+ * Pure: file writing and threshold comparison live with the caller.
+ */
+export function buildFileDirective(relPath: string, byteLength: number, preview: string): string {
+  return `[Conversation history — ${byteLength} bytes, saved to file://${relPath} — read it before answering]\n${preview}`;
 }
 
 export function serializeMessage(msg: Message): string {
