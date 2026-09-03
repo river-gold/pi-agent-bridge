@@ -8,6 +8,7 @@ import {
 
 const SAMPLE = {
   "gemini-3.7-flash": {
+    modelId: "gemini-3.7-flash",
     name: "Gemini 3.7 Flash",
     defaultVariant: "high",
     variants: ["high", "medium", "low"],
@@ -17,6 +18,7 @@ const SAMPLE = {
 describe("resolveAgyModelId", () => {
   it("appends thinking-level variant", () => {
     const meta = {
+      modelId: "gemini-3.7-flash",
       defaultVariant: "high",
       variants: ["high", "medium", "low"],
     };
@@ -32,7 +34,12 @@ describe("resolveAgyModelId", () => {
   });
 
   it("passes through models without variants", () => {
-    expect(resolveAgyModelId("claude-sonnet-4-6", "high", { variants: [] })).toEqual({
+    expect(
+      resolveAgyModelId("claude-sonnet-4-6", "high", {
+        modelId: "claude-sonnet-4-6",
+        variants: [],
+      }),
+    ).toEqual({
       model: "claude-sonnet-4-6",
     });
   });

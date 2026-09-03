@@ -10,6 +10,7 @@ const AGY_PROVIDER = "antigravity";
 const AGY_BASE_URL = "pi-agent-bridge://antigravity";
 
 export interface DiscoveredAgyModel {
+  modelId: string;
   name: string;
   defaultVariant?: string;
   variants?: string[];
@@ -18,6 +19,7 @@ export interface DiscoveredAgyModel {
 }
 
 export interface AgyModelMeta {
+  modelId: string;
   defaultVariant?: string;
   variants: string[];
 }
@@ -43,6 +45,7 @@ export function buildThinkingLevelMap(variants: string[]): ThinkingLevelMap {
 export function mapConfigEntry(id: string, entry: ConfigModelEntry): DiscoveredAgyModel {
   const variants = entry.variants ?? [];
   const result: DiscoveredAgyModel = {
+    modelId: entry.modelId,
     name: entry.name ?? id,
     defaultVariant: entry.defaultVariant ?? variants[0],
     variants,
@@ -63,6 +66,7 @@ export function toPiModels(discovered: Record<string, DiscoveredAgyModel> = {}):
     const variants = info.variants ?? [];
     const hasVariants = variants.length >= 2;
     meta.set(id, {
+      modelId: info.modelId,
       defaultVariant: info.defaultVariant ?? variants[0],
       variants,
     });
@@ -82,8 +86,8 @@ export function toPiModels(discovered: Record<string, DiscoveredAgyModel> = {}):
     });
   }
 
-  models.sort((a, b) => a.id.localeCompare(b.id));
-  return { models, meta };
+  const sorted = models.toSorted((a, b) => a.id.localeCompare(b.id));
+  return { models: sorted, meta };
 }
 
 export async function loadAgyCatalog(
@@ -112,12 +116,13 @@ export async function discoverModels(opts?: {
 }
 
 export function resolveAgyModelId(
-  modelId: string,
+  piModelId: string,
   reasoning: string | undefined,
   meta: AgyModelMeta | undefined,
 ): { model: string; effort?: string } {
+  const base = meta?.modelId ?? piModelId;
   if (!meta || meta.variants.length < 2) {
-    return { model: modelId };
+    return { model: base };
   }
 
   const map = buildThinkingLevelMap(meta.variants);
@@ -128,7 +133,7 @@ export function resolveAgyModelId(
     meta.variants[0];
 
   if (typeof variant === "string" && variant.length > 0) {
-    return { model: `${modelId}-${variant}` };
+    return { model: `${base}-${variant}` };
   }
-  return { model: modelId };
+  return { model: base };
 }

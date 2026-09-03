@@ -14,13 +14,14 @@ describe("agy-models extra", () => {
   it("toPiModels sorting and defaults", () => {
     const { models } = toPiModels({
       z: {
+        modelId: "z-model",
         name: "Z",
         variants: ["high", "low"],
         defaultVariant: "low",
         contextWindow: 1000,
         maxTokens: 500,
       },
-      a: { name: "A" },
+      a: { modelId: "a-model", name: "A" },
     });
     expect(models[0].id).toBe("a");
     expect(models[1].id).toBe("z");
@@ -34,17 +35,31 @@ describe("agy-models extra", () => {
     expect(m.low).toBe("low");
   });
   it("resolveAgyModelId edge empty variant", () => {
-    expect(resolveAgyModelId("m", "high", { variants: ["", ""], defaultVariant: "" })).toEqual({
+    expect(
+      resolveAgyModelId("m", "high", { modelId: "m", variants: ["", ""], defaultVariant: "" }),
+    ).toEqual({
       model: "m",
     });
     expect(
-      resolveAgyModelId("m", undefined, { variants: ["high", "low"], defaultVariant: "high" }),
+      resolveAgyModelId("m", undefined, {
+        modelId: "m",
+        variants: ["high", "low"],
+        defaultVariant: "high",
+      }),
     ).toEqual({ model: "m-high" });
     expect(
-      resolveAgyModelId("m", "off", { variants: ["high", "low"], defaultVariant: "high" }),
+      resolveAgyModelId("m", "off", {
+        modelId: "m",
+        variants: ["high", "low"],
+        defaultVariant: "high",
+      }),
     ).toEqual({ model: "m-high" });
     expect(
-      resolveAgyModelId("m", "unknown", { variants: ["high", "low"], defaultVariant: "high" }),
+      resolveAgyModelId("m", "unknown", {
+        modelId: "m",
+        variants: ["high", "low"],
+        defaultVariant: "high",
+      }),
     ).toEqual({ model: "m-high" });
   });
   it("loadAgyCatalog prefers antigravity", async () => {
@@ -53,8 +68,8 @@ describe("agy-models extra", () => {
     await writeFile(
       fp,
       JSON.stringify({
-        antigravity: { models: { ag1: { name: "AG1" } } },
-        agy: { models: { agy1: { name: "Agy1" } } },
+        antigravity: { models: { ag1: { modelId: "ag1-model", name: "AG1" } } },
+        agy: { models: { agy1: { modelId: "agy1-model", name: "Agy1" } } },
       }),
     );
     try {
@@ -69,7 +84,10 @@ describe("agy-models extra", () => {
   it("loadAgyCatalog fallback to agy", async () => {
     const dir = await mkdtemp(join(tmpdir(), "am2-"));
     const fp = join(dir, "c.jsonc");
-    await writeFile(fp, JSON.stringify({ agy: { models: { agy1: { name: "Agy1" } } } }));
+    await writeFile(
+      fp,
+      JSON.stringify({ agy: { models: { agy1: { modelId: "agy1-model", name: "Agy1" } } } }),
+    );
     try {
       const cat = await loadAgyCatalog(fp);
       expect(Object.keys(cat)).toEqual(["agy1"]);

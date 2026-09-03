@@ -40,6 +40,7 @@ describe("e2e/models", () => {
       expect(result.meta.get("gemini-3.7-flash")?.variants).toEqual(["high", "medium", "low"]);
       const { models } = toPiModels({
         "gemini-3.7-flash": {
+          modelId: "gemini-3.7-flash",
           name: "Gemini 3.7 Flash",
           defaultVariant: "high",
           variants: ["high", "medium", "low"],

@@ -5,6 +5,8 @@ import { parse, type ParseError } from "jsonc-parser";
 
 /** Per-agent model entry shape used in the project model config. */
 export interface ConfigModelEntry {
+  /** agy model id (e.g. "gemini-3.8-flash") */
+  modelId: string;
   name?: string;
   /** agy: suffix variants (high/medium/low) */
   variants?: string[];
@@ -44,8 +46,10 @@ export function asStringArray(value: unknown): string[] | undefined {
 
 export function parseModelEntry(raw: unknown, id: string): ConfigModelEntry | null {
   if (!isPlainObject(raw)) return null;
+  const modelId = typeof raw.modelId === "string" ? raw.modelId.trim() : "";
+  if (!modelId) return null;
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : id;
-  const entry: ConfigModelEntry = { name };
+  const entry: ConfigModelEntry = { modelId, name };
   const variants = asStringArray(raw.variants);
   if (variants) entry.variants = variants;
   if (typeof raw.defaultVariant === "string" && raw.defaultVariant.trim()) {

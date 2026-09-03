@@ -27,23 +27,28 @@ describe("models-config helpers", () => {
   });
   it("parseModelEntry", () => {
     expect(parseModelEntry(null, "id")).toBeNull();
-    expect(parseModelEntry({}, "id")?.name).toBe("id");
-    expect(parseModelEntry({ name: "  " }, "id")?.name).toBe("id");
-    expect(parseModelEntry({ name: "N", variants: ["", "high"] }, "id")?.variants).toEqual([
-      "high",
-    ]);
-    expect(parseModelEntry({ defaultVariant: "  " }, "id")?.defaultVariant).toBeUndefined();
-    expect(parseModelEntry({ defaultVariant: "x" }, "id")?.defaultVariant).toBe("x");
-    expect(parseModelEntry({ contextWindow: 0 }, "id")?.contextWindow).toBeUndefined();
-    expect(parseModelEntry({ contextWindow: 100.5 }, "id")?.contextWindow).toBe(100);
-    expect(parseModelEntry({ maxTokens: -1 }, "id")?.maxTokens).toBeUndefined();
-    expect(parseModelEntry({ maxTokens: 200.9 }, "id")?.maxTokens).toBe(200);
+    expect(parseModelEntry({}, "id")).toBeNull();
+    expect(parseModelEntry({ modelId: "m1" }, "id")?.name).toBe("id");
+    expect(parseModelEntry({ modelId: "m1", name: "  " }, "id")?.name).toBe("id");
+    expect(
+      parseModelEntry({ modelId: "m1", name: "N", variants: ["", "high"] }, "id")?.variants,
+    ).toEqual(["high"]);
+    expect(
+      parseModelEntry({ modelId: "m1", defaultVariant: "  " }, "id")?.defaultVariant,
+    ).toBeUndefined();
+    expect(parseModelEntry({ modelId: "m1", defaultVariant: "x" }, "id")?.defaultVariant).toBe("x");
+    expect(
+      parseModelEntry({ modelId: "m1", contextWindow: 0 }, "id")?.contextWindow,
+    ).toBeUndefined();
+    expect(parseModelEntry({ modelId: "m1", contextWindow: 100.5 }, "id")?.contextWindow).toBe(100);
+    expect(parseModelEntry({ modelId: "m1", maxTokens: -1 }, "id")?.maxTokens).toBeUndefined();
+    expect(parseModelEntry({ modelId: "m1", maxTokens: 200.9 }, "id")?.maxTokens).toBe(200);
   });
   it("parseAgentSection", () => {
     expect(parseAgentSection(null)).toBeUndefined();
     expect(parseAgentSection({})).toBeUndefined();
     expect(parseAgentSection({ models: "bad" })).toEqual({});
-    expect(parseAgentSection({ models: { "  ": {}, good: {} } })).toEqual({
+    expect(parseAgentSection({ models: { "  ": {}, good: { modelId: "m1" } } })).toEqual({
       good: expect.any(Object),
     });
     expect(parseAgentSection({ models: { bad: null } })).toEqual({});
